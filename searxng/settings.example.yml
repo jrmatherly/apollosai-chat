@@ -1,4 +1,8 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    remove:
+      - ahmia
+      - torch
 
 server:
   secret_key: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
@@ -6,6 +10,14 @@ server:
   image_proxy: true
   port: 8080
   bind_address: "0.0.0.0"
+
+ui:
+  static_use_hash: true
+
+enabled_plugins:
+  - 'Hash plugin'
+  - 'Self Informations'
+  - 'Tracker URL remover'
 
 search:
   # CRITICAL: json format MUST be enabled for LibreChat integration.
@@ -16,7 +28,9 @@ search:
   safe_search: 1
   default_lang: "auto"
 
-redis:
+valkey:
+  # Overridden at runtime by SEARXNG_VALKEY_URL env var (includes password).
+  # This fallback will NOT authenticate if Redis has --requirepass enabled.
   url: redis://redis:6379/1
 
 outgoing:

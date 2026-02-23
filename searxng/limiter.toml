@@ -1,0 +1,20 @@
+[botdetection]
+# Trust Docker internal network proxy headers
+trusted_proxies = ["127.0.0.1"]
+
+ipv4_prefix = 32
+ipv6_prefix = 48
+
+[botdetection.ip_limit]
+# Local network addresses are not monitored by ip_limit
+filter_link_local = false
+
+# No link token verification — internal API access only
+link_token = false
+
+[botdetection.ip_lists]
+block_ip = []
+pass_ip = []
+
+# Allow SearXNG monitoring checks
+pass_searxng_org = true

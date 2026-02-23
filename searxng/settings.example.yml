@@ -1,0 +1,23 @@
+use_default_settings: true
+
+server:
+  secret_key: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  limiter: true
+  image_proxy: true
+  port: 8080
+  bind_address: "0.0.0.0"
+
+search:
+  # CRITICAL: json format MUST be enabled for LibreChat integration.
+  # Without it, SearXNG returns 403 Forbidden on API requests.
+  formats:
+    - html
+    - json
+  safe_search: 1
+  default_lang: "auto"
+
+redis:
+  url: redis://redis:6379/1
+
+outgoing:
+  request_timeout: 5.0

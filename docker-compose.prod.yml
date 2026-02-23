@@ -118,6 +118,11 @@ services:
     volumes:
       - pgdata2:/var/lib/postgresql/18/docker
     # No ports exposed in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     logging:
       driver: "json-file"
       options:
@@ -133,7 +138,8 @@ services:
     image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
     restart: always
     depends_on:
-      - vectordb
+      vectordb:
+        condition: service_healthy
     environment:
       - DB_HOST=vectordb
       - RAG_PORT=${RAG_PORT:-8000}
@@ -160,7 +166,7 @@ services:
     container_name: redis
     image: redis:7-alpine
     restart: always
-    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    command: redis-server --save 60 1 --loglevel notice --maxmemory 512mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
     # No ports exposed in production
     volumes:
       - redis-data:/data

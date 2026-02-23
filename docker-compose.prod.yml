@@ -1,0 +1,445 @@
+# ApollosAI — Production Stack (Self-Contained)
+# Usage: docker compose -f docker-compose.prod.yml up -d
+#
+# No debug ports. Credentials from env vars (no defaults).
+# Resource limits enforced. Log rotation on all services.
+# Reference: .scratchpad/project-enhancement/SELF-HOSTING-GUIDE.md
+#
+# Required env vars (must be set before deployment):
+#   UID, GID
+#   REDIS_PASSWORD
+#   MINIO_ROOT_USER, MINIO_ROOT_PASSWORD
+#   AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   MEILI_MASTER_KEY
+#   FIRECRAWL_BULL_AUTH_KEY
+#   FIRECRAWL_DB_USER, FIRECRAWL_DB_PASSWORD, FIRECRAWL_DB_NAME
+#   LIBRECHAT_CODE_API_KEY
+
+services:
+
+  # ═══════════════════════════════════════════════
+  #  CORE SERVICES
+  # ═══════════════════════════════════════════════
+
+  api:
+    container_name: LibreChat
+    image: ghcr.io/danny-avila/librechat-dev:latest
+    restart: always
+    user: "${UID}:${GID}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${PORT}:${PORT}"     # Bind to 127.0.0.1:${PORT} if behind a reverse proxy
+    depends_on:
+      mongodb:
+        condition: service_started
+      rag_api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      firecrawl:
+        condition: service_started
+    environment:
+      - HOST=0.0.0.0
+      - MONGO_URI=mongodb://mongodb:27017/LibreChat
+      - MEILI_HOST=http://meilisearch:7700
+      - RAG_PORT=${RAG_PORT:-8000}
+      - RAG_API_URL=http://rag_api:${RAG_PORT:-8000}
+    volumes:
+      - type: bind
+        source: ./.env
+        target: /app/.env
+      - type: bind
+        source: ./librechat.yaml
+        target: /app/librechat.yaml
+      - ./images:/app/client/public/images
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mongodb:
+    container_name: chat-mongodb
+    image: mongo:8.0.17
+    restart: always
+    user: "${UID}:${GID}"
+    volumes:
+      - ./data-node:/data/db
+    # --noauth: relies on Docker network isolation (no ports exposed)
+    command: mongod --noauth
+    # No ports exposed in production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  meilisearch:
+    container_name: chat-meilisearch
+    image: getmeili/meilisearch:v1.35.1
+    restart: always
+    user: "${UID}:${GID}"
+    environment:
+      - MEILI_HOST=http://meilisearch:7700
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    volumes:
+      - ./meili_data_v1.35.1:/meili_data
+    # No ports exposed in production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  vectordb:
+    container_name: vectordb
+    image: pgvector/pgvector:0.8.1-pg18-trixie
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mydatabase}
+      POSTGRES_USER: ${POSTGRES_USER:-myuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mypassword}
+    volumes:
+      - pgdata2:/var/lib/postgresql/18/docker
+    # No ports exposed in production
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  rag_api:
+    container_name: rag_api
+    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    restart: always
+    depends_on:
+      - vectordb
+    environment:
+      - DB_HOST=vectordb
+      - RAG_PORT=${RAG_PORT:-8000}
+    env_file:
+      - .env
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ═══════════════════════════════════════════════
+  #  SHARED INFRASTRUCTURE
+  # ═══════════════════════════════════════════════
+
+  # Shared Redis — DB isolation across all services
+  # DB 0: LibreChat | DB 1: SearXNG | DB 2: Firecrawl cache
+  # DB 3: Firecrawl rate limit | DB 4: Code Interpreter
+  redis:
+    container_name: redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning --maxmemory 512mb --maxmemory-policy allkeys-lru --requirepass ${REDIS_PASSWORD}
+    # No ports exposed in production
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Shared MinIO — bucket isolation across services
+  # librechat-files: LibreChat uploads | code-interpreter-files: Code execution I/O
+  minio:
+    container_name: minio
+    image: minio/minio:latest
+    restart: always
+    command: server /data --console-address ":9001"
+    # No ports exposed in production — access via Docker network only
+    # To access MinIO Console, use SSH tunnel: ssh -L 9001:localhost:9001 yourserver
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Bucket initialization — runs once then exits
+  minio-init:
+    container_name: minio-init
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing local/librechat-files;
+      mc mb --ignore-existing local/code-interpreter-files;
+      exit 0;
+      "
+
+  # ═══════════════════════════════════════════════
+  #  SEARCH & SCRAPING
+  # ═══════════════════════════════════════════════
+
+  searxng:
+    container_name: searxng
+    image: docker.io/searxng/searxng:latest
+    restart: always
+    # No ports exposed in production — accessed by API container only
+    volumes:
+      - ./searxng:/etc/searxng:rw
+      - searxng-cache:/var/cache/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_VALKEY_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:4-alpine
+    restart: always
+    # No ports exposed in production
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Firecrawl NUQ job queue database — dedicated PostgreSQL 17 + pg_cron
+  # Official image: https://github.com/firecrawl/firecrawl/tree/main/apps/nuq-postgres
+  # Provides automatic schema init + 7 maintenance cron jobs (cleanup, lock reaping, reindexing)
+  # Includes PostgreSQL tuning for high-throughput queue operations (WAL, checkpoint, bgwriter)
+  nuq-postgres:
+    container_name: nuq-postgres
+    build:
+      context: ./nuq
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      POSTGRES_USER: ${FIRECRAWL_DB_USER}
+      POSTGRES_PASSWORD: ${FIRECRAWL_DB_PASSWORD}
+      POSTGRES_DB: ${FIRECRAWL_DB_NAME:-postgres}
+    volumes:
+      - nuq-pgdata:/var/lib/postgresql/data
+    # No ports exposed in production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FIRECRAWL_DB_USER:-firecrawl} -d ${FIRECRAWL_DB_NAME:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  firecrawl:
+    container_name: firecrawl
+    image: ghcr.io/firecrawl/firecrawl:latest
+    restart: always
+    # No ports exposed in production — accessed by API container only
+    environment:
+      - PORT=3002
+      - HOST=0.0.0.0
+      - USE_DB_AUTHENTICATION=false
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
+      - REDIS_RATE_LIMIT_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
+      - POSTGRES_HOST=nuq-postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${FIRECRAWL_DB_USER}
+      - POSTGRES_PASSWORD=${FIRECRAWL_DB_PASSWORD}
+      - POSTGRES_DB=${FIRECRAWL_DB_NAME:-postgres}
+      - NUQ_RABBITMQ_URL=amqp://rabbitmq:5672
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000/scrape
+      - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY}
+      - NUM_WORKERS_PER_QUEUE=8
+    depends_on:
+      redis:
+        condition: service_healthy
+      nuq-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_started
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+
+  firecrawl-playwright:
+    container_name: firecrawl-playwright
+    image: ghcr.io/firecrawl/playwright-service:latest
+    restart: always
+    environment:
+      - PORT=3000
+      - MAX_CONCURRENT_PAGES=10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+
+  # ═══════════════════════════════════════════════
+  #  ARTIFACTS & CODE EXECUTION
+  # ═══════════════════════════════════════════════
+
+  sandpack-bundler:
+    container_name: sandpack-bundler
+    image: ghcr.io/librechat-ai/codesandbox-client/bundler:latest
+    restart: always
+    ports:
+      - "${SANDPACK_PORT:-8085}:80"   # All interfaces — must be browser-reachable
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  code-interpreter:
+    container_name: code-interpreter
+    image: ghcr.io/usnavy13/librecodeinterpreter:latest
+    restart: always
+    # privileged + Docker socket mount required for sandboxed code execution.
+    # The container creates isolated sub-containers for each code execution session.
+    # OrbStack: symlinks /var/run/docker.sock automatically.
+    # Docker Desktop: socket is at /var/run/docker.sock by default.
+    privileged: true
+    group_add:
+      - "0"                          # Socket is root:root inside container; appuser needs gid 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    # No ports exposed in production — accessed by API container only
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_KEY=${LIBRECHAT_CODE_API_KEY}
+      - MASTER_API_KEY=${LIBRECHAT_CODE_API_KEY}
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+      - MINIO_BUCKET=code-interpreter-files
+    depends_on:
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 4G
+
+volumes:
+  pgdata2:
+  nuq-pgdata:
+  redis-data:
+  minio-data:
+  searxng-cache:

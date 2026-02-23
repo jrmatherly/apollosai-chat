@@ -2,13 +2,13 @@ version: '3.8'
 
 services:
   vectordb:
-    image: pgvector/pgvector:0.8.0-pg15-trixie
+    image: pgvector/pgvector:0.8.1-pg18-trixie
     environment:
       POSTGRES_DB: mydatabase
       POSTGRES_USER: myuser
       POSTGRES_PASSWORD: mypassword
     volumes:
-      - pgdata2:/var/lib/postgresql/data
+      - pgdata2:/var/lib/postgresql/18/docker
     ports:
       - "5433:5432"
 

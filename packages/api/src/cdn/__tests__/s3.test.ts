@@ -24,6 +24,7 @@ describe('initializeS3', () => {
     Object.assign(process.env, REQUIRED_ENV);
     delete process.env.AWS_ENDPOINT_URL;
     delete process.env.AWS_FORCE_PATH_STYLE;
+    delete process.env.AWS_PRESIGN_ENDPOINT_URL;
   });
 
   afterEach(() => {
@@ -32,14 +33,15 @@ describe('initializeS3', () => {
     }
     delete process.env.AWS_ENDPOINT_URL;
     delete process.env.AWS_FORCE_PATH_STYLE;
+    delete process.env.AWS_PRESIGN_ENDPOINT_URL;
   });
 
   async function load() {
     const { S3Client: MockS3Client } = jest.requireMock('@aws-sdk/client-s3') as {
       S3Client: jest.MockedClass<typeof S3Client>;
     };
-    const { initializeS3 } = await import('../s3');
-    return { MockS3Client, initializeS3 };
+    const { initializeS3, initializeS3Presign } = await import('../s3');
+    return { MockS3Client, initializeS3, initializeS3Presign };
   }
 
   it('should initialize with region and credentials', async () => {
@@ -119,5 +121,59 @@ describe('initializeS3', () => {
     expect(mockLogger.info).toHaveBeenCalledWith(
       '[initializeS3] S3 initialized using default credentials (IRSA).',
     );
+  });
+
+  describe('initializeS3Presign', () => {
+    it('should return the internal S3 client when AWS_PRESIGN_ENDPOINT_URL is not set', async () => {
+      const { initializeS3, initializeS3Presign } = await load();
+      const internal = initializeS3();
+      const presign = initializeS3Presign();
+      expect(presign).toBe(internal);
+    });
+
+    it('should create a separate client when AWS_PRESIGN_ENDPOINT_URL is set', async () => {
+      process.env.AWS_PRESIGN_ENDPOINT_URL = 'http://localhost:9000';
+      process.env.AWS_ENDPOINT_URL = 'http://minio:9000';
+      const { MockS3Client, initializeS3, initializeS3Presign } = await load();
+      const internal = initializeS3();
+      const presign = initializeS3Presign();
+      expect(presign).not.toBe(internal);
+      expect(MockS3Client).toHaveBeenCalledTimes(2);
+      expect(MockS3Client.mock.calls[1][0]).toEqual(
+        expect.objectContaining({ endpoint: 'http://localhost:9000' }),
+      );
+    });
+
+    it('should return the same presign instance on subsequent calls', async () => {
+      process.env.AWS_PRESIGN_ENDPOINT_URL = 'http://localhost:9000';
+      const { MockS3Client, initializeS3Presign } = await load();
+      const first = initializeS3Presign();
+      const second = initializeS3Presign();
+      expect(first).toBe(second);
+      expect(MockS3Client).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return null when AWS_REGION is not set', async () => {
+      process.env.AWS_PRESIGN_ENDPOINT_URL = 'http://localhost:9000';
+      delete process.env.AWS_REGION;
+      const { initializeS3Presign } = await load();
+      const result = initializeS3Presign();
+      expect(result).toBeNull();
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        '[initializeS3Presign] AWS_REGION is not set. Cannot initialize S3 presign client.',
+      );
+    });
+
+    it('should include credentials when provided', async () => {
+      process.env.AWS_PRESIGN_ENDPOINT_URL = 'http://localhost:9000';
+      const { MockS3Client, initializeS3Presign } = await load();
+      initializeS3Presign();
+      expect(MockS3Client).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credentials: { accessKeyId: 'test-key-id', secretAccessKey: 'test-secret' },
+          endpoint: 'http://localhost:9000',
+        }),
+      );
+    });
   });
 });

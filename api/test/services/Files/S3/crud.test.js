@@ -18,6 +18,7 @@ jest.mock('@aws-sdk/client-s3');
 
 jest.mock('@librechat/api', () => ({
   initializeS3: jest.fn(),
+  initializeS3Presign: jest.fn(),
   deleteRagFile: jest.fn().mockResolvedValue(undefined),
   isEnabled: jest.fn((val) => val === 'true'),
 }));
@@ -31,7 +32,7 @@ jest.mock('@librechat/data-schemas', () => ({
   },
 }));
 
-const { initializeS3, deleteRagFile } = require('@librechat/api');
+const { initializeS3, initializeS3Presign, deleteRagFile } = require('@librechat/api');
 const { logger } = require('@librechat/data-schemas');
 
 // Set env vars before requiring crud so module-level constants pick them up
@@ -63,6 +64,7 @@ describe('S3 CRUD Operations', () => {
       send: jest.fn(),
     };
     initializeS3.mockReturnValue(mockS3Client);
+    initializeS3Presign.mockReturnValue(mockS3Client);
   });
 
   afterEach(() => {

@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 const { logger } = require('@librechat/data-schemas');
 const { FileSources } = require('librechat-data-provider');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const { initializeS3, deleteRagFile, isEnabled } = require('@librechat/api');
+const { initializeS3, initializeS3Presign, deleteRagFile, isEnabled } = require('@librechat/api');
 const {
   PutObjectCommand,
   GetObjectCommand,
@@ -105,7 +105,7 @@ async function getS3URL({
   }
 
   try {
-    const s3 = initializeS3();
+    const s3 = initializeS3Presign();
     return await getSignedUrl(s3, new GetObjectCommand(params), { expiresIn: s3UrlExpirySeconds });
   } catch (error) {
     logger.error('[getS3URL] Error getting signed URL from S3:', error.message);

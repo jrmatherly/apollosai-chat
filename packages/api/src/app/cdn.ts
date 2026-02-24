@@ -3,7 +3,7 @@ import { FileSources } from 'librechat-data-provider';
 import type { AppConfig } from '@librechat/data-schemas';
 import { initializeAzureBlobService } from '~/cdn/azure';
 import { initializeFirebase } from '~/cdn/firebase';
-import { initializeS3 } from '~/cdn/s3';
+import { initializeS3, initializeS3Presign } from '~/cdn/s3';
 
 /**
  * Initializes file storage clients based on the configured file strategy.
@@ -22,5 +22,6 @@ export function initializeFileStorage(appConfig: AppConfig) {
     });
   } else if (fileStrategy === FileSources.s3) {
     initializeS3();
+    initializeS3Presign();
   }
 }

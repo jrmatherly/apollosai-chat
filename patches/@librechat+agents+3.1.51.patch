@@ -1,0 +1,171 @@
+diff --git a/node_modules/@librechat/agents/dist/cjs/tools/search/rerankers.cjs b/node_modules/@librechat/agents/dist/cjs/tools/search/rerankers.cjs
+index 54e1e16..7ec2481 100644
+--- a/node_modules/@librechat/agents/dist/cjs/tools/search/rerankers.cjs
++++ b/node_modules/@librechat/agents/dist/cjs/tools/search/rerankers.cjs
+@@ -80,12 +80,14 @@ class JinaReranker extends BaseReranker {
+     }
+ }
+ class CohereReranker extends BaseReranker {
+-    constructor({ apiKey = process.env.COHERE_API_KEY, logger, }) {
++    apiUrl;
++    constructor({ apiKey = process.env.COHERE_API_KEY, apiUrl = process.env.COHERE_API_URL || 'https://api.cohere.com/v2/rerank', logger, }) {
+         super(logger);
+         this.apiKey = apiKey;
++        this.apiUrl = apiUrl;
+     }
+     async rerank(query, documents, topK = 5) {
+-        this.logger.debug(`Reranking ${documents.length} chunks with Cohere`);
++        this.logger.debug(`Reranking ${documents.length} chunks with Cohere using API URL: ${this.apiUrl}`);
+         try {
+             if (this.apiKey == null || this.apiKey === '') {
+                 this.logger.warn('COHERE_API_KEY is not set. Using default ranking.');
+@@ -97,7 +99,7 @@ class CohereReranker extends BaseReranker {
+                 top_n: topK,
+                 documents: documents,
+             };
+-            const response = await axios.post('https://api.cohere.com/v2/rerank', requestData, {
++            const response = await axios.post(this.apiUrl, requestData, {
+                 headers: {
+                     'Content-Type': 'application/json',
+                     Authorization: `Bearer ${this.apiKey}`,
+@@ -140,7 +142,7 @@ class InfinityReranker extends BaseReranker {
+  * Creates the appropriate reranker based on type and configuration
+  */
+ const createReranker = (config) => {
+-    const { rerankerType, jinaApiKey, jinaApiUrl, cohereApiKey, logger } = config;
++    const { rerankerType, jinaApiKey, jinaApiUrl, cohereApiKey, cohereApiUrl, logger } = config;
+     // Create a default logger if none is provided
+     const defaultLogger = logger || utils.createDefaultLogger();
+     switch (rerankerType.toLowerCase()) {
+@@ -149,6 +151,7 @@ const createReranker = (config) => {
+         case 'cohere':
+             return new CohereReranker({
+                 apiKey: cohereApiKey,
++                apiUrl: cohereApiUrl,
+                 logger: defaultLogger,
+             });
+         case 'infinity':
+diff --git a/node_modules/@librechat/agents/dist/cjs/tools/search/tool.cjs b/node_modules/@librechat/agents/dist/cjs/tools/search/tool.cjs
+index f55beb5..bf228cb 100644
+--- a/node_modules/@librechat/agents/dist/cjs/tools/search/tool.cjs
++++ b/node_modules/@librechat/agents/dist/cjs/tools/search/tool.cjs
+@@ -208,7 +208,7 @@ function createTool({ schema: schema$1, search, onSearchResults: _onSearchResult
+     });
+ }
+ const createSearchTool = (config = {}) => {
+-    const { searchProvider = 'serper', serperApiKey, searxngInstanceUrl, searxngApiKey, rerankerType = 'cohere', topResults = 5, strategies = ['no_extraction'], filterContent = true, safeSearch = 1, scraperProvider = 'firecrawl', firecrawlApiKey, firecrawlApiUrl, firecrawlVersion, firecrawlOptions, serperScraperOptions, scraperTimeout, jinaApiKey, jinaApiUrl, cohereApiKey, onSearchResults: _onSearchResults, onGetHighlights, } = config;
++    const { searchProvider = 'serper', serperApiKey, searxngInstanceUrl, searxngApiKey, rerankerType = 'cohere', topResults = 5, strategies = ['no_extraction'], filterContent = true, safeSearch = 1, scraperProvider = 'firecrawl', firecrawlApiKey, firecrawlApiUrl, firecrawlVersion, firecrawlOptions, serperScraperOptions, scraperTimeout, jinaApiKey, jinaApiUrl, cohereApiKey, cohereApiUrl, onSearchResults: _onSearchResults, onGetHighlights, } = config;
+     const logger = config.logger || utils.createDefaultLogger();
+     const schemaProperties = {
+         query: schema.querySchema,
+@@ -257,6 +257,7 @@ const createSearchTool = (config = {}) => {
+         jinaApiKey,
+         jinaApiUrl,
+         cohereApiKey,
++        cohereApiUrl,
+         logger,
+     });
+     if (!selectedReranker) {
+diff --git a/node_modules/@librechat/agents/dist/esm/tools/search/rerankers.mjs b/node_modules/@librechat/agents/dist/esm/tools/search/rerankers.mjs
+index 46ee4c4..cb10184 100644
+--- a/node_modules/@librechat/agents/dist/esm/tools/search/rerankers.mjs
++++ b/node_modules/@librechat/agents/dist/esm/tools/search/rerankers.mjs
+@@ -78,12 +78,14 @@ class JinaReranker extends BaseReranker {
+     }
+ }
+ class CohereReranker extends BaseReranker {
+-    constructor({ apiKey = process.env.COHERE_API_KEY, logger, }) {
++    apiUrl;
++    constructor({ apiKey = process.env.COHERE_API_KEY, apiUrl = process.env.COHERE_API_URL || 'https://api.cohere.com/v2/rerank', logger, }) {
+         super(logger);
+         this.apiKey = apiKey;
++        this.apiUrl = apiUrl;
+     }
+     async rerank(query, documents, topK = 5) {
+-        this.logger.debug(`Reranking ${documents.length} chunks with Cohere`);
++        this.logger.debug(`Reranking ${documents.length} chunks with Cohere using API URL: ${this.apiUrl}`);
+         try {
+             if (this.apiKey == null || this.apiKey === '') {
+                 this.logger.warn('COHERE_API_KEY is not set. Using default ranking.');
+@@ -95,7 +97,7 @@ class CohereReranker extends BaseReranker {
+                 top_n: topK,
+                 documents: documents,
+             };
+-            const response = await axios.post('https://api.cohere.com/v2/rerank', requestData, {
++            const response = await axios.post(this.apiUrl, requestData, {
+                 headers: {
+                     'Content-Type': 'application/json',
+                     Authorization: `Bearer ${this.apiKey}`,
+@@ -138,7 +140,7 @@ class InfinityReranker extends BaseReranker {
+  * Creates the appropriate reranker based on type and configuration
+  */
+ const createReranker = (config) => {
+-    const { rerankerType, jinaApiKey, jinaApiUrl, cohereApiKey, logger } = config;
++    const { rerankerType, jinaApiKey, jinaApiUrl, cohereApiKey, cohereApiUrl, logger } = config;
+     // Create a default logger if none is provided
+     const defaultLogger = logger || createDefaultLogger();
+     switch (rerankerType.toLowerCase()) {
+@@ -147,6 +149,7 @@ const createReranker = (config) => {
+         case 'cohere':
+             return new CohereReranker({
+                 apiKey: cohereApiKey,
++                apiUrl: cohereApiUrl,
+                 logger: defaultLogger,
+             });
+         case 'infinity':
+diff --git a/node_modules/@librechat/agents/dist/esm/tools/search/tool.mjs b/node_modules/@librechat/agents/dist/esm/tools/search/tool.mjs
+index eb077ab..d9febc8 100644
+--- a/node_modules/@librechat/agents/dist/esm/tools/search/tool.mjs
++++ b/node_modules/@librechat/agents/dist/esm/tools/search/tool.mjs
+@@ -206,7 +206,7 @@ function createTool({ schema, search, onSearchResults: _onSearchResults, }) {
+     });
+ }
+ const createSearchTool = (config = {}) => {
+-    const { searchProvider = 'serper', serperApiKey, searxngInstanceUrl, searxngApiKey, rerankerType = 'cohere', topResults = 5, strategies = ['no_extraction'], filterContent = true, safeSearch = 1, scraperProvider = 'firecrawl', firecrawlApiKey, firecrawlApiUrl, firecrawlVersion, firecrawlOptions, serperScraperOptions, scraperTimeout, jinaApiKey, jinaApiUrl, cohereApiKey, onSearchResults: _onSearchResults, onGetHighlights, } = config;
++    const { searchProvider = 'serper', serperApiKey, searxngInstanceUrl, searxngApiKey, rerankerType = 'cohere', topResults = 5, strategies = ['no_extraction'], filterContent = true, safeSearch = 1, scraperProvider = 'firecrawl', firecrawlApiKey, firecrawlApiUrl, firecrawlVersion, firecrawlOptions, serperScraperOptions, scraperTimeout, jinaApiKey, jinaApiUrl, cohereApiKey, cohereApiUrl, onSearchResults: _onSearchResults, onGetHighlights, } = config;
+     const logger = config.logger || createDefaultLogger();
+     const schemaProperties = {
+         query: querySchema,
+@@ -255,6 +255,7 @@ const createSearchTool = (config = {}) => {
+         jinaApiKey,
+         jinaApiUrl,
+         cohereApiKey,
++        cohereApiUrl,
+         logger,
+     });
+     if (!selectedReranker) {
+diff --git a/node_modules/@librechat/agents/dist/types/tools/search/rerankers.d.ts b/node_modules/@librechat/agents/dist/types/tools/search/rerankers.d.ts
+index 5b7b48f..2af1f0b 100644
+--- a/node_modules/@librechat/agents/dist/types/tools/search/rerankers.d.ts
++++ b/node_modules/@librechat/agents/dist/types/tools/search/rerankers.d.ts
+@@ -16,8 +16,10 @@ export declare class JinaReranker extends BaseReranker {
+     rerank(query: string, documents: string[], topK?: number): Promise<t.Highlight[]>;
+ }
+ export declare class CohereReranker extends BaseReranker {
+-    constructor({ apiKey, logger, }: {
++    private apiUrl;
++    constructor({ apiKey, apiUrl, logger, }: {
+         apiKey?: string;
++        apiUrl?: string;
+         logger?: t.Logger;
+     });
+     rerank(query: string, documents: string[], topK?: number): Promise<t.Highlight[]>;
+@@ -34,5 +36,6 @@ export declare const createReranker: (config: {
+     jinaApiKey?: string;
+     jinaApiUrl?: string;
+     cohereApiKey?: string;
++    cohereApiUrl?: string;
+     logger?: t.Logger;
+ }) => BaseReranker | undefined;
+diff --git a/node_modules/@librechat/agents/dist/types/tools/search/types.d.ts b/node_modules/@librechat/agents/dist/types/tools/search/types.d.ts
+index 168c996..529ad73 100644
+--- a/node_modules/@librechat/agents/dist/types/tools/search/types.d.ts
++++ b/node_modules/@librechat/agents/dist/types/tools/search/types.d.ts
+@@ -140,6 +140,7 @@ export interface SearchToolConfig extends SearchConfig, ProcessSourcesConfig, Fi
+     jinaApiKey?: string;
+     jinaApiUrl?: string;
+     cohereApiKey?: string;
++    cohereApiUrl?: string;
+     rerankerType?: RerankerType;
+     scraperProvider?: ScraperProvider;
+     scraperTimeout?: number;

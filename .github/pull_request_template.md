@@ -4,7 +4,8 @@
 - Please ensure that you have thoroughly read and understood the [Contributing Docs](https://github.com/jrmatherly/apollosai-chat/blob/main/.github/CONTRIBUTING.md) before submitting your Pull Request.
 
 ⚠️ Documentation Updates Notice:
-- Kindly note that documentation updates are managed in this repository: [librechat.ai](https://github.com/LibreChat-AI/librechat.ai)
+- Kindly note that upstream documentation updates are managed in: [librechat.ai](https://github.com/LibreChat-AI/librechat.ai)
+- For ApollosAI-specific documentation, update files in this repository directly.
 
 ## Summary
 

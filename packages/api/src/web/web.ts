@@ -186,6 +186,10 @@ export async function loadWebSearchAuth({
   for (const category of categories) {
     const [isCategoryAuthenticated, isUserProvided] = await checkAuth(category);
     if (!isCategoryAuthenticated) {
+      if (category === SearchCategories.RERANKERS && !webSearchConfig?.rerankerType) {
+        authTypes.push([category, AuthType.SYSTEM_DEFINED]);
+        continue;
+      }
       authenticated = false;
       authTypes.push([category, AuthType.USER_PROVIDED]);
       continue;

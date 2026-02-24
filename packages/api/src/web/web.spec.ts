@@ -566,11 +566,7 @@ describe('web.ts', () => {
     it('should maintain authTypes array structure even when authentication fails', async () => {
       // Set up environment variables
       const originalEnv = process.env;
-      process.env = {
-        ...originalEnv,
-        SERPER_API_KEY: 'test-key',
-        // Missing other keys to force authentication failure
-      };
+      process.env = { ...originalEnv };
 
       // Initialize webSearchConfig with environment variable references
       const webSearchConfig: TCustomConfig['webSearch'] = {
@@ -583,18 +579,12 @@ describe('web.ts', () => {
         jinaApiUrl: '${JINA_API_URL}',
         cohereApiKey: '${COHERE_API_KEY}',
         safeSearch: SafeSearchTypes.MODERATE,
+        rerankerType: 'jina' as RerankerTypes,
       };
 
-      // Mock loadAuthValues to return partial values
-      mockLoadAuthValues.mockImplementation(({ authFields }) => {
-        const result: Record<string, string> = {};
-        authFields.forEach((field: string) => {
-          if (field === 'SERPER_API_KEY') {
-            result[field] = 'test-key';
-          }
-          // Other fields are intentionally missing
-        });
-        return Promise.resolve(result);
+      // Mock loadAuthValues to return no values, forcing all categories to fail
+      mockLoadAuthValues.mockImplementation(() => {
+        return Promise.resolve({});
       });
 
       const result = await loadWebSearchAuth({
@@ -808,6 +798,42 @@ describe('web.ts', () => {
         call[0].authFields.includes('COHERE_API_KEY'),
       );
       expect(cohereCalls.length).toBe(0);
+    });
+
+    it('should authenticate successfully when no reranker is configured', async () => {
+      const webSearchConfig: TCustomConfig['webSearch'] = {
+        searxngInstanceUrl: '${SEARXNG_INSTANCE_URL}',
+        firecrawlApiKey: '${FIRECRAWL_API_KEY}',
+        firecrawlApiUrl: '${FIRECRAWL_API_URL}',
+        safeSearch: SafeSearchTypes.MODERATE,
+        searchProvider: 'searxng' as SearchProviders,
+        scraperProvider: 'firecrawl' as ScraperProviders,
+      };
+
+      mockLoadAuthValues.mockImplementation(({ authFields }) => {
+        const result: Record<string, string> = {};
+        authFields.forEach((field: string) => {
+          result[field] =
+            field === 'FIRECRAWL_API_URL' ? 'https://api.firecrawl.dev' : 'test-api-key';
+        });
+        return Promise.resolve(result);
+      });
+
+      const result = await loadWebSearchAuth({
+        userId,
+        webSearchConfig,
+        loadAuthValues: mockLoadAuthValues,
+      });
+
+      expect(result.authenticated).toBe(true);
+      expect(result.authResult.searchProvider).toBe('searxng');
+      expect(result.authResult.scraperProvider).toBe('firecrawl');
+      expect(result.authResult.rerankerType).toBeUndefined();
+
+      const rerankersAuthType = result.authTypes.find(
+        ([category]) => category === 'rerankers',
+      )?.[1];
+      expect(rerankersAuthType).toBe(AuthType.SYSTEM_DEFINED);
     });
 
     it('should handle invalid specified service gracefully', async () => {

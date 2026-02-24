@@ -12,11 +12,9 @@ When reporting a security vulnerability, you have the following options to reach
 
 - **Option 2: GitHub Issues**: You can initiate first contact via GitHub Issues. However, please note that initial contact through GitHub Issues should not include any sensitive details.
 
-- **Option 3: Discord Server**: You can join our [Discord community](https://discord.librechat.ai) and initiate first contact in the `#issues` channel. However, please ensure that initial contact through Discord does not include any sensitive details.
-
 _After the initial contact, we will establish a private communication channel for further discussion._
 
-### When submitting a vulnerability report, please provide us with the following information:
+### Vulnerability Report Requirements
 
 - A clear description of the vulnerability, including steps to reproduce it.
 - The version(s) of the project affected by the vulnerability.
@@ -39,7 +37,7 @@ Please note that as a security-conscious community, we may not always disclose d
 
 This security policy applies to the following GitHub repository:
 
-- Repository: [LibreChat](https://github.librechat.ai)
+- Repository: [ApollosAI Chat](https://github.com/jrmatherly/apollosai-chat)
 
 ## Contact
 

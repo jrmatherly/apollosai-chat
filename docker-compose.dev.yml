@@ -307,6 +307,25 @@ services:
         max-size: "1m"
         max-file: "1"
 
+  # Pre-pull language runtime images so code-interpreter finds them on first request.
+  # Runs once per `docker compose up`, exits 0 when done.
+  code-interpreter-init:
+    container_name: code-interpreter-init
+    image: docker:cli
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Pulling code-interpreter language images...';
+      docker pull ghcr.io/usnavy13/librecodeinterpreter/python:latest;
+      docker tag  ghcr.io/usnavy13/librecodeinterpreter/python:latest code-interpreter/python:latest;
+      docker pull ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest;
+      docker tag  ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest code-interpreter/nodejs:latest;
+      echo 'Language images ready.';
+      exit 0;
+      "
+
   code-interpreter:
     container_name: code-interpreter
     image: ghcr.io/usnavy13/librecodeinterpreter:latest
@@ -335,6 +354,8 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BUCKET=code-interpreter-files
     depends_on:
+      code-interpreter-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:

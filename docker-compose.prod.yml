@@ -469,12 +469,36 @@ services:
     logging:
       driver: "json-file"
       options:
-        max-size: "1m"
-        max-file: "1"
+        max-size: "5m"
+        max-file: "3"
     deploy:
       resources:
         limits:
           memory: 128M
+
+  # Pre-pull language runtime images so code-interpreter finds them on first request.
+  # Runs once per `docker compose up`, exits 0 when done.
+  code-interpreter-init:
+    container_name: code-interpreter-init
+    image: docker:cli
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: >
+      /bin/sh -c "
+      echo 'Pulling code-interpreter language images...';
+      docker pull ghcr.io/usnavy13/librecodeinterpreter/python:latest;
+      docker tag  ghcr.io/usnavy13/librecodeinterpreter/python:latest code-interpreter/python:latest;
+      docker pull ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest;
+      docker tag  ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest code-interpreter/nodejs:latest;
+      echo 'Language images ready.';
+      exit 0;
+      "
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
 
   code-interpreter:
     container_name: code-interpreter
@@ -486,7 +510,7 @@ services:
     # Docker Desktop: socket is at /var/run/docker.sock by default.
     privileged: true
     group_add:
-      - "0"                          # Socket is root:root inside container; appuser needs gid 0
+      - "${DOCKER_GID:-998}"         # Must match host's docker group GID (stat -c '%g' /var/run/docker.sock)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./code-interpreter/seccomp-sandbox.json:/app/docker/seccomp-sandbox.json:ro
@@ -503,6 +527,8 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_BUCKET=code-interpreter-files
     depends_on:
+      code-interpreter-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:

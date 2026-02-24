@@ -1,6 +1,6 @@
 [botdetection]
 # Trust Docker internal network proxy headers
-trusted_proxies = ["127.0.0.1"]
+trusted_proxies = ["127.0.0.1", "172.16.0.0/12", "10.0.0.0/8", "192.168.0.0/16"]
 
 ipv4_prefix = 32
 ipv6_prefix = 48

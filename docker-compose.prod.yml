@@ -442,6 +442,7 @@ services:
       - "0"                          # Socket is root:root inside container; appuser needs gid 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./code-interpreter/seccomp-sandbox.json:/app/docker/seccomp-sandbox.json:ro
     # No ports exposed in production — accessed by API container only
     environment:
       - API_HOST=0.0.0.0
@@ -449,7 +450,6 @@ services:
       - API_KEY=${LIBRECHAT_CODE_API_KEY}
       - MASTER_API_KEY=${LIBRECHAT_CODE_API_KEY}
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - DOCKER_SECCOMP_PROFILE=
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/4
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}

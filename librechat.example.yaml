@@ -451,7 +451,7 @@ mcpSettings:
 #         max_tokens: 8192
 #         imageDetail: 'high'
 #         reasoning_effort: 'high'
-#         reasoning_summary: 'Concise'
+#         reasoning_summary: 'concise'
 #         greeting: 'Ready for deep work. What are we tackling?'
 #
 #     - name: 'assistant-code'

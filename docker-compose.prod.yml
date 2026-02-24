@@ -20,7 +20,6 @@
 #   SSL_CERT_PATH, SSL_KEY_PATH
 
 services:
-
   # ═══════════════════════════════════════════════
   #  REVERSE PROXY (SSL termination)
   # ═══════════════════════════════════════════════
@@ -30,9 +29,9 @@ services:
     image: nginx:1-alpine
     restart: always
     ports:
-      - "80:80"       # HTTP → HTTPS redirect
-      - "443:443"     # Main app + MinIO presigned URLs
-      - "8443:8443"   # Sandpack bundler (HTTPS)
+      - '80:80' # HTTP → HTTPS redirect
+      - '443:443' # Main app + MinIO presigned URLs
+      - '8443:8443' # Sandpack bundler (HTTPS)
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/cert.pem:ro
@@ -46,10 +45,10 @@ services:
       sandpack-bundler:
         condition: service_healthy
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -63,9 +62,9 @@ services:
     container_name: LibreChat
     image: ghcr.io/jrmatherly/librechat-dev:latest
     restart: always
-    user: "${UID}:${GID}"
+    user: '${UID}:${GID}'
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     # No ports exposed — nginx reverse proxy handles external access
     # Uncomment for direct access without nginx:
     # ports:
@@ -100,26 +99,26 @@ services:
       - ./uploads:/app/uploads
       - ./logs:/app/logs
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
   mongodb:
     container_name: chat-mongodb
     image: mongo:8.0.17
     restart: always
-    user: "${UID}:${GID}"
+    user: '${UID}:${GID}'
     volumes:
       - ./data-node:/data/db
     # --noauth: relies on Docker network isolation (no ports exposed)
     command: mongod --noauth
     # No ports exposed in production
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -129,7 +128,7 @@ services:
     container_name: chat-meilisearch
     image: getmeili/meilisearch:v1.35.1
     restart: always
-    user: "${UID}:${GID}"
+    user: '${UID}:${GID}'
     environment:
       - MEILI_HOST=http://meilisearch:7700
       - MEILI_NO_ANALYTICS=true
@@ -138,10 +137,10 @@ services:
       - ./meili_data_v1.35.1:/meili_data
     # No ports exposed in production
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -159,15 +158,15 @@ services:
       - pgdata2:/var/lib/postgresql/18/docker
     # No ports exposed in production
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-myuser} -d ${POSTGRES_DB:-mydatabase}']
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -186,10 +185,10 @@ services:
     env_file:
       - .env
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -210,15 +209,15 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "--no-auth-warning", "ping"]
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', '--no-auth-warning', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -243,15 +242,15 @@ services:
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ['CMD', 'mc', 'ready', 'local']
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -264,7 +263,7 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    restart: "no"
+    restart: 'no'
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
@@ -295,7 +294,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- --header='X-Real-IP: 127.0.0.1' http://localhost:8080/healthz"]
+      test: ['CMD-SHELL', "wget -qO- --header='X-Real-IP: 127.0.0.1' http://localhost:8080/healthz"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -306,10 +305,10 @@ services:
       - SETGID
       - SETUID
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -321,15 +320,15 @@ services:
     restart: always
     # No ports exposed in production
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -344,15 +343,15 @@ services:
     command: redis-server --save 60 1 --loglevel notice --maxmemory 256mb --maxmemory-policy noeviction
     # No ports exposed in production
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -376,15 +375,19 @@ services:
       - nuq-pgdata:/var/lib/postgresql/data
     # No ports exposed in production
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${FIRECRAWL_DB_USER:-firecrawl} -d ${FIRECRAWL_DB_NAME:-postgres}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${FIRECRAWL_DB_USER:-firecrawl} -d ${FIRECRAWL_DB_NAME:-postgres}',
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -420,14 +423,14 @@ services:
       firecrawl-playwright:
         condition: service_started
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
     deploy:
       resources:
         limits:
-          cpus: "4"
+          cpus: '4'
           memory: 8G
 
   firecrawl-playwright:
@@ -438,14 +441,14 @@ services:
       - PORT=3000
       - MAX_CONCURRENT_PAGES=10
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
-          cpus: "2"
+          cpus: '2'
           memory: 4G
 
   # ═══════════════════════════════════════════════
@@ -462,15 +465,15 @@ services:
     # ports:
     #   - "${SANDPACK_PORT:-8085}:80"
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1"]
+      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1']
       interval: 30s
       timeout: 3s
       retries: 3
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "5m"
-        max-file: "3"
+        max-size: '5m'
+        max-file: '3'
     deploy:
       resources:
         limits:
@@ -481,7 +484,7 @@ services:
   code-interpreter-init:
     container_name: code-interpreter-init
     image: docker:cli
-    restart: "no"
+    restart: 'no'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     entrypoint: >
@@ -495,10 +498,10 @@ services:
       exit 0;
       "
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "1m"
-        max-file: "1"
+        max-size: '5m'
+        max-file: '3'
 
   code-interpreter:
     container_name: code-interpreter
@@ -510,7 +513,7 @@ services:
     # Docker Desktop: socket is at /var/run/docker.sock by default.
     privileged: true
     group_add:
-      - "${DOCKER_GID:-998}"         # Must match host's docker group GID (stat -c '%g' /var/run/docker.sock)
+      - '${DOCKER_GID:-998}' # Must match host's docker group GID (stat -c '%g' /var/run/docker.sock)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./code-interpreter/seccomp-sandbox.json:/app/docker/seccomp-sandbox.json:ro
@@ -534,14 +537,14 @@ services:
       minio:
         condition: service_healthy
     logging:
-      driver: "json-file"
+      driver: 'json-file'
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
     deploy:
       resources:
         limits:
-          cpus: "4"
+          cpus: '4'
           memory: 4G
 
 volumes:

@@ -1,5 +1,7 @@
 # LibreChat
 
+> **AI Agent Context:** For comprehensive implementation rules, version constraints, and anti-patterns, see [`_bmad-output/project-context.md`](./_bmad-output/project-context.md). Read it before implementing any code.
+
 ## Project Overview
 
 LibreChat is a monorepo with the following key workspaces:

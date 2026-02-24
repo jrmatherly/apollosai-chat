@@ -1,0 +1,97 @@
+{
+  "repository_type": "monorepo",
+  "build_system": "turborepo",
+  "package_manager": "npm@11.10.0",
+  "parts": [
+    {
+      "part_id": "frontend",
+      "display_name": "React SPA Frontend",
+      "project_type_id": "web",
+      "root_paths": ["client"],
+      "tech_stack": {
+        "framework": "React 18.2",
+        "language": "TypeScript 5.3",
+        "build_tool": "Vite 6.4",
+        "styling": "TailwindCSS 3.4",
+        "state_management": ["Recoil", "Jotai", "React Query 4.28"],
+        "ui_library": "Radix UI",
+        "routing": "React Router DOM 6.30",
+        "i18n": "react-i18next 15.4"
+      },
+      "entry_point": "client/vite.config.ts",
+      "component_count": "630+",
+      "test_framework": "Jest + Testing Library"
+    },
+    {
+      "part_id": "backend",
+      "display_name": "Express + TypeScript Backend",
+      "project_type_id": "backend",
+      "root_paths": ["api", "packages/api"],
+      "tech_stack": {
+        "runtime": "Node.js 20+",
+        "framework": "Express 5.2",
+        "language": "JavaScript (legacy) + TypeScript 5 (new)",
+        "database": "MongoDB/Mongoose 8.12",
+        "cache": "Redis/ioredis 5.3",
+        "search": "MeiliSearch 0.38",
+        "auth": "Passport 0.6 (13 strategies)",
+        "ai_sdks": ["OpenAI", "Anthropic", "Google GenAI", "AWS Bedrock", "Ollama"],
+        "agent_framework": "@librechat/agents 3.1.51",
+        "mcp": "@modelcontextprotocol/sdk 1.26",
+        "logging": "Winston 3.11"
+      },
+      "entry_point": "api/server/index.js",
+      "endpoint_count": "100+",
+      "model_count": 27,
+      "test_framework": "Jest + Supertest + mongodb-memory-server"
+    },
+    {
+      "part_id": "shared",
+      "display_name": "Shared Types, Schemas, Utilities",
+      "project_type_id": "library",
+      "root_paths": ["packages/data-provider", "packages/data-schemas", "packages/client"],
+      "tech_stack": {
+        "language": "TypeScript 5",
+        "validation": "Zod 3.22",
+        "odm": "Mongoose 8.12",
+        "http": "Axios 1.13",
+        "react_query": "@tanstack/react-query 4.28",
+        "build": "Rollup 4.22"
+      },
+      "exports": "Dual CJS/ESM",
+      "test_framework": "Jest"
+    }
+  ],
+  "integration_points": [
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "REST API",
+      "details": "HTTP requests via Axios through data-provider data-service.ts"
+    },
+    {
+      "from": "frontend",
+      "to": "backend",
+      "type": "Server-Sent Events",
+      "details": "SSE streaming for real-time AI generation at /api/agents/chat/stream/:streamId"
+    },
+    {
+      "from": "frontend",
+      "to": "shared",
+      "type": "TypeScript imports",
+      "details": "Shared types, QueryKeys, React Query hooks from data-provider"
+    },
+    {
+      "from": "backend",
+      "to": "shared",
+      "type": "TypeScript imports",
+      "details": "Mongoose models from data-schemas, types from data-provider"
+    },
+    {
+      "from": "backend (legacy JS)",
+      "to": "backend (new TS)",
+      "type": "require()",
+      "details": "api/ imports compiled packages/api via @librechat/api"
+    }
+  ]
+}

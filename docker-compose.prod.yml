@@ -23,7 +23,7 @@ services:
 
   api:
     container_name: LibreChat
-    image: ghcr.io/danny-avila/librechat-dev:latest
+    image: ghcr.io/jrmatherly/librechat-dev:latest
     restart: always
     user: "${UID}:${GID}"
     extra_hosts:
@@ -135,7 +135,7 @@ services:
 
   rag_api:
     container_name: rag_api
-    image: ghcr.io/danny-avila/librechat-rag-api-dev-lite:latest
+    image: ghcr.io/jrmatherly/librechat-rag-api-dev-lite:latest
     restart: always
     depends_on:
       vectordb:
@@ -159,9 +159,8 @@ services:
   #  SHARED INFRASTRUCTURE
   # ═══════════════════════════════════════════════
 
-  # Shared Redis — DB isolation across all services
-  # DB 0: LibreChat | DB 1: SearXNG | DB 2: Firecrawl cache
-  # DB 3: Firecrawl rate limit | DB 4: Code Interpreter
+  # Shared Redis — DB isolation across services
+  # DB 0: LibreChat | DB 1: SearXNG | DB 4: Code Interpreter
   redis:
     container_name: redis
     image: redis:7-alpine
@@ -292,6 +291,29 @@ services:
         limits:
           memory: 512M
 
+  # Dedicated Firecrawl Redis — noeviction policy required by Firecrawl
+  # Shared Redis uses allkeys-lru for cache management; Firecrawl needs noeviction for queue integrity
+  firecrawl-redis:
+    container_name: firecrawl-redis
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --save 60 1 --loglevel notice --maxmemory 256mb --maxmemory-policy noeviction
+    # No ports exposed in production
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   # Firecrawl NUQ job queue database — dedicated PostgreSQL 17 + pg_cron
   # Official image: https://github.com/firecrawl/firecrawl/tree/main/apps/nuq-postgres
   # Provides automatic schema init + 7 maintenance cron jobs (cleanup, lock reaping, reindexing)
@@ -333,8 +355,8 @@ services:
       - PORT=3002
       - HOST=0.0.0.0
       - USE_DB_AUTHENTICATION=false
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/2
-      - REDIS_RATE_LIMIT_URL=redis://:${REDIS_PASSWORD}@redis:6379/3
+      - REDIS_URL=redis://firecrawl-redis:6379/0
+      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379/1
       - POSTGRES_HOST=nuq-postgres
       - POSTGRES_PORT=5432
       - POSTGRES_USER=${FIRECRAWL_DB_USER}
@@ -345,7 +367,7 @@ services:
       - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY}
       - NUM_WORKERS_PER_QUEUE=8
     depends_on:
-      redis:
+      firecrawl-redis:
         condition: service_healthy
       nuq-postgres:
         condition: service_healthy

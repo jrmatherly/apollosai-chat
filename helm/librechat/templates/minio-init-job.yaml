@@ -29,7 +29,9 @@ spec:
               mc alias set local http://{{ include "librechat.fullname" . }}-minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD;
               until mc ready local; do echo 'Waiting for MinIO...'; sleep 2; done;
               mc mb --ignore-existing local/librechat-files;
+              {{- if .Values.codeInterpreter.enabled }}
               mc mb --ignore-existing local/code-interpreter-files;
+              {{- end }}
           env:
             - name: MINIO_ROOT_USER
               valueFrom:

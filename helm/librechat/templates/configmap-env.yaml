@@ -42,6 +42,9 @@ data:
   {{- if and (not (dig "configEnv" "AWS_PRESIGN_ENDPOINT_URL" "" .Values.librechat)) .Values.minio.enabled .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) }}
   AWS_PRESIGN_ENDPOINT_URL: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ (index .Values.ingress.hosts 0).host }}
   {{- end }}
+  {{- if and (not (dig "configEnv" "SANDPACK_BUNDLER_URL" "" .Values.librechat)) .Values.sandpack.enabled .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) }}
+  SANDPACK_BUNDLER_URL: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ (index .Values.ingress.hosts 0).host }}/artifacts/
+  {{- end }}
   {{- if .Values.librechat.configEnv }}
   {{- toYaml .Values.librechat.configEnv | nindent 2 }}
   {{- end }}

@@ -55,6 +55,7 @@ spec:
               serviceName: {{ include "librechat.fullname" $ }}-minio
               servicePort: 9000
               {{- end }}
+          {{- if $.Values.codeInterpreter.enabled }}
           - path: /code-interpreter-files/
             {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
             pathType: Prefix
@@ -68,6 +69,23 @@ spec:
               {{- else }}
               serviceName: {{ include "librechat.fullname" $ }}-minio
               servicePort: 9000
+              {{- end }}
+          {{- end }}
+          {{- end }}
+          {{- if $.Values.sandpack.enabled }}
+          - path: /artifacts/
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ include "librechat.fullname" $ }}-sandpack
+                port:
+                  number: 80
+              {{- else }}
+              serviceName: {{ include "librechat.fullname" $ }}-sandpack
+              servicePort: 80
               {{- end }}
           {{- end }}
           {{- range .paths }}

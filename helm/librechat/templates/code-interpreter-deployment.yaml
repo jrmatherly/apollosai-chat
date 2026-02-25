@@ -1,0 +1,151 @@
+{{- if .Values.codeInterpreter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "librechat.fullname" . }}-code-interpreter
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: code-interpreter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "librechat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: code-interpreter
+  template:
+    metadata:
+      labels:
+        {{- include "librechat.labels" . | nindent 8 }}
+        app.kubernetes.io/component: code-interpreter
+    spec:
+      initContainers:
+        {{- /* DinD native sidecar (K8s 1.28+): runs for pod lifetime, pull-languages depends on it */}}
+        - name: dind
+          image: "{{ .Values.codeInterpreter.dind.image.repository }}:{{ .Values.codeInterpreter.dind.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          restartPolicy: Always
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          ports:
+            - name: docker
+              containerPort: 2375
+              protocol: TCP
+          volumeMounts:
+            - name: docker-storage
+              mountPath: /var/lib/docker
+          {{- with .Values.codeInterpreter.dind.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            exec:
+              command: ["docker", "info"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 3
+        - name: pull-languages
+          image: "{{ .Values.codeInterpreter.initPull.image.repository }}:{{ .Values.codeInterpreter.initPull.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo 'Waiting for DinD daemon...'
+              until docker info >/dev/null 2>&1; do sleep 2; done
+              echo 'Pulling code-interpreter language images...'
+              docker pull ghcr.io/usnavy13/librecodeinterpreter/python:latest
+              docker tag  ghcr.io/usnavy13/librecodeinterpreter/python:latest code-interpreter/python:latest
+              docker pull ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest
+              docker tag  ghcr.io/usnavy13/librecodeinterpreter/nodejs:latest code-interpreter/nodejs:latest
+              echo 'Language images ready.'
+      containers:
+        - name: code-interpreter
+          image: "{{ .Values.codeInterpreter.image.repository }}:{{ .Values.codeInterpreter.image.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: API_HOST
+              value: "0.0.0.0"
+            - name: API_PORT
+              value: "8000"
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: LIBRECHAT_CODE_API_KEY
+            - name: MASTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: LIBRECHAT_CODE_API_KEY
+            {{- if .Values.redis.enabled }}
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret }}
+                  key: {{ .Values.redis.auth.existingSecretPasswordKey }}
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@{{ include "librechat.redis.fullname" . }}-master:6379/4"
+            {{- else }}
+            - name: REDIS_URL
+              value: "redis://{{ include "librechat.redis.fullname" . }}-master:6379/4"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.minio.enabled }}
+            - name: MINIO_ENDPOINT
+              value: "{{ include "librechat.fullname" . }}-minio:9000"
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: MINIO_ROOT_USER
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: MINIO_ROOT_PASSWORD
+            - name: MINIO_BUCKET
+              value: "code-interpreter-files"
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.codeInterpreter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: seccomp-profile
+              mountPath: /app/docker
+              readOnly: true
+      volumes:
+        - name: docker-storage
+          emptyDir: {}
+        - name: seccomp-profile
+          configMap:
+            name: {{ include "librechat.fullname" . }}-code-interpreter-seccomp
+{{- end }}

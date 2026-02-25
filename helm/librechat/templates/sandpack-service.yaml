@@ -1,0 +1,19 @@
+{{- if .Values.sandpack.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "librechat.fullname" . }}-sandpack
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandpack
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "librechat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: sandpack
+{{- end }}

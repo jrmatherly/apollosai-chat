@@ -25,6 +25,9 @@ global:
    #   FIRECRAWL_DB_PASSWORD  - NUQ PostgreSQL password
    #   FIRECRAWL_BULL_AUTH_KEY - Firecrawl Bull queue auth key
    #
+   # Required when codeInterpreter.enabled:
+   #   LIBRECHAT_CODE_API_KEY - Code Interpreter API key (shared between LibreChat and Code Interpreter)
+   #
    # Optional keys (add as needed for your deployment):
    #   OPENAI_API_KEY         - OpenAI API key (for TTS/STT via LiteLLM)
    #   AZURE_OPENAI_API_KEY   - Azure OpenAI API key
@@ -430,3 +433,48 @@ firecrawl:
       requests:
         cpu: "500m"
         memory: 1Gi
+
+# Sandpack Bundler Parameters (code artifact rendering)
+sandpack:
+  enabled: true
+  image:
+    repository: ghcr.io/librechat-ai/codesandbox-client/bundler
+    tag: latest
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      memory: 64Mi
+
+# Code Interpreter Parameters (sandboxed code execution)
+# Uses DinD (Docker-in-Docker) sidecar pattern for containerd-based K8s clusters.
+# Requires K8s 1.29+ (native sidecar support, KEP-753 beta).
+# K8s 1.28 works but requires manually enabling the SidecarContainers feature gate.
+# Requires adding LIBRECHAT_CODE_API_KEY to the Secret.
+codeInterpreter:
+  enabled: true
+  image:
+    repository: ghcr.io/usnavy13/librecodeinterpreter
+    tag: latest
+  resources:
+    limits:
+      cpu: "4"
+      memory: 4Gi
+    requests:
+      cpu: "1"
+      memory: 1Gi
+  dind:
+    image:
+      repository: docker
+      tag: 27-dind
+    resources:
+      limits:
+        cpu: "1"
+        memory: 512Mi
+      requests:
+        cpu: "250m"
+        memory: 256Mi
+  initPull:
+    image:
+      repository: docker
+      tag: 27-cli

@@ -1,0 +1,386 @@
+# MCP Context Forge — Nginx Reverse Proxy Configuration
+# Auto-generated from template by nginx:1-alpine envsubst entrypoint
+# Source: mcp-context-forge/infra/nginx/nginx-tls.conf
+#
+# This file is included inside the http{} context via conf.d/
+# All directives here are scoped to MCP Context Forge and do not
+# affect LibreChat's server blocks.
+
+# ============================================================
+# Rate Limiting — MCP Context Forge only
+# ============================================================
+limit_req_zone $binary_remote_addr zone=mcf_api_limit:10m rate=20000r/s;
+limit_conn_zone $binary_remote_addr zone=mcf_conn_limit:10m;
+limit_req_status 429;
+limit_conn_status 429;
+
+# ============================================================
+# Cache Zones — MCP Context Forge only
+# ============================================================
+# Zone 1: Static assets (CSS, JS, images) - 1GB, 30 day max age
+proxy_cache_path /var/cache/nginx/mcf/static
+                 levels=1:2
+                 keys_zone=mcf_static_cache:100m
+                 max_size=1g
+                 inactive=30d
+                 use_temp_path=off;
+
+# Zone 2: API responses - 512MB, 1 hour max age
+proxy_cache_path /var/cache/nginx/mcf/api
+                 levels=1:2
+                 keys_zone=mcf_api_cache:50m
+                 max_size=512m
+                 inactive=1h
+                 use_temp_path=off;
+
+# Zone 3: OpenAPI/Schema responses - 256MB, 24 hour max age
+proxy_cache_path /var/cache/nginx/mcf/schema
+                 levels=1:2
+                 keys_zone=mcf_schema_cache:20m
+                 max_size=256m
+                 inactive=24h
+                 use_temp_path=off;
+
+# ============================================================
+# Upstream — MCP Context Forge Gateway (dynamic DNS resolution)
+# ============================================================
+# Uses resolver + variable-based proxy_pass instead of an upstream block
+# so nginx starts even when the gateway container isn't running yet.
+# Docker's embedded DNS (127.0.0.11) resolves container names at request time.
+# Note: This trades keepalive connection pooling for cross-stack startup independence.
+
+# ============================================================
+# Cache Bypass Conditions
+# ============================================================
+map $request_method $mcf_skip_cache {
+    default 0;
+    POST 1;
+    PUT 1;
+    PATCH 1;
+    DELETE 1;
+}
+
+# ============================================================
+# HTTPS Redirect Port Detection (for MCP Context Forge)
+# ============================================================
+map $http_host $mcf_https_redirect_port {
+    ~:8080$     :8443;
+    ~:80$       "";
+    default     "";
+}
+
+# =============================================================
+#  MCP Context Forge — HTTPS Server (port 443)
+# =============================================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${MCF_DOMAIN};
+
+    # Docker embedded DNS — resolves container names at request time
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    set $mcf_backend http://gateway:4444;
+
+    # --- SSL certificates (shared with LibreChat) ---
+    ssl_certificate     /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+
+    # --- SSL hardening ---
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:MCF_SSL:10m;
+    ssl_session_timeout 10m;
+
+    # --- Security headers ---
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # HSTS - uncomment to force HTTPS (15768000 = 6 months)
+    # add_header Strict-Transport-Security "max-age=15768000; includeSubDomains" always;
+
+    # Cache status header (for debugging)
+    add_header X-Cache-Status $upstream_cache_status always;
+
+    # ============================================================
+    # Nginx Status - For Prometheus nginx-exporter metrics
+    # ============================================================
+    location /nginx_status {
+        stub_status on;
+        allow 127.0.0.1;
+        allow 172.16.0.0/12;
+        allow 10.0.0.0/8;
+        deny all;
+    }
+
+    # ============================================================
+    # Health Check - No rate limiting
+    # ============================================================
+    location = /health {
+        proxy_pass $mcf_backend;
+        proxy_set_header Host $http_host;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 5s;
+    }
+
+    # ============================================================
+    # Static Assets - Aggressive Caching (30 days)
+    # ============================================================
+    location ~* \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|otf|webp|avif)$ {
+        proxy_pass $mcf_backend;
+
+        proxy_cache mcf_static_cache;
+        proxy_cache_valid 200 30d;
+        proxy_cache_valid 404 10m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+
+        proxy_cache_bypass $mcf_skip_cache;
+        proxy_no_cache $mcf_skip_cache;
+
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        add_header X-Cache-Status $upstream_cache_status always;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+    }
+
+    # ============================================================
+    # OpenAPI/Schema - Moderate Caching (24 hours)
+    # ============================================================
+    location ~ ^/(openapi\.json|docs|redoc)$ {
+        proxy_pass $mcf_backend;
+
+        proxy_cache mcf_schema_cache;
+        proxy_cache_valid 200 24h;
+        proxy_cache_valid 404 1h;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+
+        proxy_cache_key "$scheme$request_method$host$request_uri";
+
+        proxy_cache_bypass $mcf_skip_cache;
+        proxy_no_cache $mcf_skip_cache;
+
+        expires 24h;
+        add_header Cache-Control "public, must-revalidate";
+        add_header X-Cache-Status $upstream_cache_status always;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+    }
+
+    # ============================================================
+    # Read-Only API Endpoints - Short Caching (5 minutes)
+    # ============================================================
+    location ~ ^/(tools|servers|gateways|resources|prompts|tags|a2a|health|version|metrics)$ {
+        limit_req zone=mcf_api_limit burst=20000 nodelay;
+        limit_conn mcf_conn_limit 20000;
+
+        proxy_pass $mcf_backend;
+
+        proxy_cache mcf_api_cache;
+        proxy_cache_valid 200 5m;
+        proxy_cache_valid 404 1m;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+
+        proxy_cache_methods GET HEAD;
+        proxy_cache_key "$scheme$request_method$host$request_uri$is_args$args$http_authorization";
+
+        proxy_cache_bypass $mcf_skip_cache;
+        proxy_no_cache $mcf_skip_cache;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
+
+        expires 5m;
+        add_header Cache-Control "public, must-revalidate";
+        add_header X-Cache-Status $upstream_cache_status always;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # ============================================================
+    # Admin UI - Short-TTL Caching with Multi-Tenant Isolation
+    # ============================================================
+    location = /admin/events {
+        proxy_pass $mcf_backend;
+
+        proxy_cache off;
+        proxy_buffering off;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 3600s;
+        proxy_read_timeout 3600s;
+    }
+
+    location /admin {
+        limit_req zone=mcf_api_limit burst=20000 nodelay;
+        limit_conn mcf_conn_limit 20000;
+
+        proxy_pass $mcf_backend;
+
+        proxy_cache mcf_api_cache;
+        proxy_cache_valid 200 5s;
+        proxy_cache_valid 404 1s;
+        proxy_cache_use_stale error timeout updating http_500 http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        proxy_cache_lock on;
+        proxy_cache_revalidate on;
+
+        proxy_ignore_headers Set-Cookie;
+        proxy_cache_methods GET HEAD;
+        proxy_cache_key "$scheme$request_method$host$request_uri$is_args$args$http_authorization$cookie_jwt_token$cookie_access_token";
+        proxy_cache_bypass $mcf_skip_cache;
+        proxy_no_cache $mcf_skip_cache;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
+
+        add_header Cache-Control "private, max-age=5" always;
+        add_header X-Cache-Status $upstream_cache_status always;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+
+    # ============================================================
+    # SSE Endpoints - No Caching
+    # ============================================================
+    location ~ ^/servers/.*/sse$ {
+        proxy_pass $mcf_backend;
+
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
+        chunked_transfer_encoding off;
+        proxy_buffering off;
+        proxy_cache off;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_read_timeout 1h;
+    }
+
+    # ============================================================
+    # WebSocket Endpoints - No Caching
+    # ============================================================
+    location ~ ^/servers/.*/ws$ {
+        proxy_pass $mcf_backend;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_cache off;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_read_timeout 1h;
+    }
+
+    # ============================================================
+    # JSON-RPC Endpoint - No Caching
+    # ============================================================
+    location = / {
+        limit_req zone=mcf_api_limit burst=20000 nodelay;
+        limit_conn mcf_conn_limit 20000;
+
+        proxy_pass $mcf_backend;
+        proxy_cache off;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # ============================================================
+    # All Other Endpoints - No Caching (default)
+    # ============================================================
+    location / {
+        limit_req zone=mcf_api_limit burst=20000 nodelay;
+        limit_conn mcf_conn_limit 20000;
+
+        proxy_pass $mcf_backend;
+        proxy_cache off;
+
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 10s;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+}

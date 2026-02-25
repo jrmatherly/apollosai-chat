@@ -32,10 +32,26 @@ services:
       - '80:80' # HTTP → HTTPS redirect
       - '443:443' # Main app + MinIO presigned URLs
       - '8443:8443' # Sandpack bundler (HTTPS)
+    networks:
+      - default # LibreChat internal services (api, minio, sandpack-bundler)
+      - shared-proxy # Cross-stack access to MCP Context Forge gateway
+    environment:
+      - LIBRECHAT_DOMAIN=${LIBRECHAT_DOMAIN:-_}
+      - MCF_DOMAIN=${MCF_DOMAIN:-_}
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Main nginx config with performance tuning + conf.d include
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # Remove stock default.conf (our templates generate conf.d/ files)
+      - /dev/null:/etc/nginx/conf.d/default.conf:ro
+      # LibreChat routing (generated from template by entrypoint)
+      - ./nginx/librechat.conf.template:/etc/nginx/templates/librechat.conf.template:ro
+      # MCP Context Forge routing (generated from template by entrypoint)
+      - ./nginx/mcf-gateway.conf.template:/etc/nginx/templates/mcf-gateway.conf.template:ro
+      # SSL certificates
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/cert.pem:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/key.pem:ro
+      # MCP Context Forge nginx cache storage
+      - mcf-nginx-cache:/var/cache/nginx/mcf
       # Uncomment for Let's Encrypt / certbot:
       # - ./certbot/www:/var/www/certbot:ro
       # - ./certbot/conf:/etc/letsencrypt:ro
@@ -52,7 +68,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 128M
+          memory: 256M
 
   # ═══════════════════════════════════════════════
   #  CORE SERVICES
@@ -547,9 +563,14 @@ services:
           cpus: '4'
           memory: 4G
 
+networks:
+  shared-proxy: # Shared network for cross-stack nginx routing (LibreChat ↔ MCF)
+    external: true
+
 volumes:
   pgdata2:
   nuq-pgdata:
   redis-data:
   minio-data:
   searxng-cache:
+  mcf-nginx-cache: # MCP Context Forge nginx cache storage

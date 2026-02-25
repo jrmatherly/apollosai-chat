@@ -55,6 +55,9 @@ searxng:
 
 # NetworkPolicies restrict inbound traffic to data stores.
 # Requires a CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.).
+# NOTE: If your namespace has a default-deny ingress policy, you will also need
+# to add a NetworkPolicy allowing traffic from your ingress controller to the
+# LibreChat, Sandpack, and MinIO pods.
 networkPolicies:
   enabled: true
 

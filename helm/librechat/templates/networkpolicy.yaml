@@ -115,6 +115,10 @@ spec:
               {{- $selectorLabels | nindent 14 }}
               app.kubernetes.io/component: code-interpreter
         {{- end }}
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: minio-init
       ports:
         - protocol: TCP
           port: 9000

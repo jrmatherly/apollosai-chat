@@ -37,3 +37,10 @@ jobs:
           helm template ci-test helm/librechat \
             --set searxng.secretKey=ci-test-key \
             > /dev/null
+
+      - name: Validate template rendering (NetworkPolicies enabled)
+        run: |
+          helm template ci-test helm/librechat \
+            --set searxng.secretKey=ci-test-key \
+            --set networkPolicies.enabled=true \
+            > /dev/null

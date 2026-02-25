@@ -313,9 +313,13 @@ mongodb:
   enabled: true
   auth:
     enabled: false
+  # Disable Bitnami's default NetworkPolicy (wide-open, allows all pods).
+  # Our custom networkpolicy.yaml provides restrictive per-service policies instead.
+  networkPolicy:
+    enabled: false
   databases:
    - LibreChat
-#  persistence: 
+#  persistence:
 #    size: 8Gi
 
 
@@ -338,6 +342,10 @@ redis:
     enabled: true
     existingSecret: "librechat-credentials-env"
     existingSecretPasswordKey: "REDIS_PASSWORD"
+  # Disable Bitnami's default NetworkPolicy (wide-open, allows all pods).
+  # Our custom networkpolicy.yaml provides restrictive per-service policies instead.
+  networkPolicy:
+    enabled: false
   # NOTE: commonConfiguration replaces Bitnami defaults entirely (not appended).
   # For standalone architecture this is acceptable.
   commonConfiguration: |-

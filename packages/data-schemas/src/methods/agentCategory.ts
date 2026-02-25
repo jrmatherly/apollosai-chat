@@ -191,10 +191,28 @@ export function createAgentCategoryMethods(mongoose: typeof import('mongoose')) 
         order: 5,
       },
       {
+        value: 'legal',
+        label: 'com_agents_category_legal',
+        description: 'com_agents_category_legal_description',
+        order: 6,
+      },
+      {
+        value: 'engineering',
+        label: 'com_agents_category_engineering',
+        description: 'com_agents_category_engineering_description',
+        order: 7,
+      },
+      {
+        value: 'development',
+        label: 'com_agents_category_development',
+        description: 'com_agents_category_development_description',
+        order: 8,
+      },
+      {
         value: 'aftersales',
         label: 'com_agents_category_aftersales',
         description: 'com_agents_category_aftersales_description',
-        order: 6,
+        order: 9,
       },
     ];
 

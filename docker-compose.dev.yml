@@ -17,6 +17,9 @@ services:
     restart: always
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      - default # LibreChat internal services (mongodb, redis, minio, etc.)
+      - shared-proxy # Cross-stack access to MCP Context Forge gateway
     ports:
       - "${PORT}:${PORT}"
     depends_on:
@@ -360,6 +363,10 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+
+networks:
+  shared-proxy: # Shared network for cross-stack routing (LibreChat ↔ MCF)
+    external: true
 
 volumes:
   pgdata2:

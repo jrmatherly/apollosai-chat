@@ -81,6 +81,9 @@ services:
     user: '${UID}:${GID}'
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+    networks:
+      - default # LibreChat internal services (mongodb, redis, minio, etc.)
+      - shared-proxy # Cross-stack access to MCP Context Forge gateway
     # No ports exposed — nginx reverse proxy handles external access
     # Uncomment for direct access without nginx:
     # ports:

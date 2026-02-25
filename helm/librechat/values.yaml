@@ -327,3 +327,35 @@ redis:
     maxmemory 512mb
     maxmemory-policy allkeys-lru
     save 60 1
+
+# MinIO Parameters
+minio:
+  enabled: true
+  image:
+    repository: minio/minio
+    tag: latest
+  mcImage:
+    repository: minio/mc
+    tag: latest
+  persistence:
+    size: 50Gi
+    # storageClassName: ""
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi
+
+# SearXNG Parameters
+searxng:
+  enabled: true
+  image:
+    repository: searxng/searxng
+    tag: latest
+  # Generate with: openssl rand -hex 32
+  secretKey: ""
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      memory: 256Mi

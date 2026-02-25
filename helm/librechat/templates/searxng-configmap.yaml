@@ -1,0 +1,51 @@
+{{- if .Values.searxng.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "librechat.fullname" . }}-searxng-config
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: searxng
+data:
+  settings.yml: |
+    use_default_settings:
+      engines:
+        remove:
+          - ahmia
+          - torch
+          - duckduckgo
+    server:
+      secret_key: "{{ .Values.searxng.secretKey }}"
+      limiter: false
+      image_proxy: true
+      port: 8080
+      bind_address: "0.0.0.0"
+    ui:
+      static_use_hash: true
+    enabled_plugins:
+      - 'Hash plugin'
+      - 'Self Informations'
+      - 'Tracker URL remover'
+    search:
+      formats:
+        - html
+        - json
+      safe_search: 1
+      default_lang: "auto"
+    valkey:
+      url: redis://{{ include "librechat.redis.fullname" . }}-master:6379/1
+    outgoing:
+      request_timeout: 5.0
+  limiter.toml: |
+    [botdetection]
+    trusted_proxies = ["127.0.0.1", "172.16.0.0/12", "10.0.0.0/8", "192.168.0.0/16"]
+    ipv4_prefix = 32
+    ipv6_prefix = 48
+    [botdetection.ip_limit]
+    filter_link_local = false
+    link_token = false
+    [botdetection.ip_lists]
+    block_ip = []
+    pass_ip = []
+    pass_searxng_org = true
+{{- end }}

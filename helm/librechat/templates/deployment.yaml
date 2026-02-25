@@ -1,3 +1,4 @@
+{{- include "librechat.validate" . -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -105,7 +106,7 @@ spec:
               name: {{ .Values.global.librechat.existingSecretName }}
               optional: true
           {{- end }}
-          {{- if or .Values.global.librechat.env (and .Values.redis.enabled .Values.redis.auth.enabled (not (dig "configEnv" "REDIS_URI" "" .Values.librechat))) }}
+          {{- if or .Values.global.librechat.env (and .Values.redis.enabled .Values.redis.auth.enabled (not (dig "configEnv" "REDIS_URI" "" .Values.librechat))) .Values.minio.enabled }}
           env:
           {{- with .Values.global.librechat.env }}
           {{- toYaml . | nindent 12 }}
@@ -122,6 +123,18 @@ spec:
               value: "6379"
             - name: REDIS_URI
               value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/0"
+          {{- end }}
+          {{- if .Values.minio.enabled }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: MINIO_ROOT_USER
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: MINIO_ROOT_PASSWORD
           {{- end }}
           {{- end }}
       volumes:

@@ -21,6 +21,21 @@ data:
   {{- end }}
   {{/*- When redis.auth.enabled, REDIS_URI is constructed in the Deployment env block via $(REDIS_PASSWORD) substitution */}}
   {{- end }}
+  {{- if and (not (dig "configEnv" "SEARXNG_INSTANCE_URL" "" .Values.librechat)) .Values.searxng.enabled }}
+  SEARXNG_INSTANCE_URL: http://{{ include "librechat.fullname" . }}-searxng.{{ .Release.Namespace | lower }}.svc.cluster.local:8080
+  {{- end }}
+  {{- if and (not (dig "configEnv" "AWS_ENDPOINT_URL" "" .Values.librechat)) .Values.minio.enabled }}
+  AWS_ENDPOINT_URL: http://{{ include "librechat.fullname" . }}-minio.{{ .Release.Namespace | lower }}.svc.cluster.local:9000
+  {{- end }}
+  {{- if and (not (dig "configEnv" "AWS_FORCE_PATH_STYLE" "" .Values.librechat)) .Values.minio.enabled }}
+  AWS_FORCE_PATH_STYLE: "true"
+  {{- end }}
+  {{- if and (not (dig "configEnv" "AWS_BUCKET_NAME" "" .Values.librechat)) .Values.minio.enabled }}
+  AWS_BUCKET_NAME: "librechat-files"
+  {{- end }}
+  {{- if and (not (dig "configEnv" "AWS_PRESIGN_ENDPOINT_URL" "" .Values.librechat)) .Values.minio.enabled .Values.ingress.enabled (gt (len .Values.ingress.hosts) 0) }}
+  AWS_PRESIGN_ENDPOINT_URL: {{ if .Values.ingress.tls }}https{{ else }}http{{ end }}://{{ (index .Values.ingress.hosts 0).host }}
+  {{- end }}
   {{- if .Values.librechat.configEnv }}
   {{- toYaml .Values.librechat.configEnv | nindent 2 }}
   {{- end }}

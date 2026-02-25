@@ -1,0 +1,91 @@
+{{- if .Values.searxng.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "librechat.fullname" . }}-searxng
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: searxng
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "librechat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: searxng
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/searxng-configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "librechat.labels" . | nindent 8 }}
+        app.kubernetes.io/component: searxng
+    spec:
+      containers:
+        - name: searxng
+          image: "{{ .Values.searxng.image.repository }}:{{ .Values.searxng.image.tag }}"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SEARXNG_BASE_URL
+              value: "http://{{ include "librechat.fullname" . }}-searxng:8080/"
+            {{- if and .Values.redis.enabled .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: {{ .Values.redis.auth.existingSecretPasswordKey | default "REDIS_PASSWORD" }}
+            - name: SEARXNG_VALKEY_URL
+              value: "redis://:$(REDIS_PASSWORD)@{{ include "librechat.redis.fullname" . }}-master:6379/1"
+            {{- end }}
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - SETGID
+                - SETUID
+          readinessProbe:
+            exec:
+              command:
+                - wget
+                - -qO-
+                - --header=X-Real-IP: 127.0.0.1
+                - http://localhost:8080/healthz
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - wget
+                - -qO-
+                - --header=X-Real-IP: 127.0.0.1
+                - http://localhost:8080/healthz
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.searxng.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: searxng-config
+              mountPath: /etc/searxng/settings.yml
+              subPath: settings.yml
+              readOnly: true
+            - name: searxng-config
+              mountPath: /etc/searxng/limiter.toml
+              subPath: limiter.toml
+              readOnly: true
+            - name: searxng-cache
+              mountPath: /var/cache/searxng
+      volumes:
+        - name: searxng-config
+          configMap:
+            name: {{ include "librechat.fullname" . }}-searxng-config
+        - name: searxng-cache
+          emptyDir: {}
+{{- end }}

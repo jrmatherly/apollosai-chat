@@ -80,6 +80,15 @@ transitive dependency (via the redis subchart) and not available here.
 {{- end -}}
 
 {{/*
+Validate required values
+*/}}
+{{- define "librechat.validate" -}}
+{{- if and .Values.searxng.enabled (eq .Values.searxng.secretKey "") -}}
+{{- fail "searxng.secretKey must be set when searxng.enabled=true. Generate with: openssl rand -hex 32" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Define apiVersion of HorizontalPodAutoscaler
 */}}
 {{- define "librechat.hpa.apiVersion" -}}

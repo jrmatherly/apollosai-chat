@@ -40,6 +40,36 @@ spec:
     - host: {{ .host | quote }}
       http:
         paths:
+          {{- if $.Values.minio.enabled }}
+          - path: /librechat-files/
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ include "librechat.fullname" $ }}-minio
+                port:
+                  number: 9000
+              {{- else }}
+              serviceName: {{ include "librechat.fullname" $ }}-minio
+              servicePort: 9000
+              {{- end }}
+          - path: /code-interpreter-files/
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: Prefix
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ include "librechat.fullname" $ }}-minio
+                port:
+                  number: 9000
+              {{- else }}
+              serviceName: {{ include "librechat.fullname" $ }}-minio
+              servicePort: 9000
+              {{- end }}
+          {{- end }}
           {{- range .paths }}
           - path: {{ .path }}
             {{- if and .pathType (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}

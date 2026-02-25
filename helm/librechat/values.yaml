@@ -372,6 +372,9 @@ searxng:
 # FIRECRAWL_BULL_AUTH_KEY, and optionally FIRECRAWL_API_KEY
 firecrawl:
   enabled: true
+  # API key for self-hosted Firecrawl (used by both LibreChat and Firecrawl)
+  # Override via librechat.configEnv.FIRECRAWL_API_KEY will only change LibreChat's value
+  apiKey: "fc-self-hosted"
   image:
     repository: ghcr.io/firecrawl/firecrawl
     tag: latest

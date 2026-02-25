@@ -1,4 +1,5 @@
 {{- if .Values.firecrawl.enabled }}
+{{- /* nuq.sql init script is baked into the custom image (see nuq/Dockerfile). No ConfigMap needed. */ -}}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

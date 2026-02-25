@@ -7,14 +7,25 @@ replicaCount: 1
 
 
 global:
-   # default Secret for envs/ only Passwords. Can be locally generated with: kubectl create secret generic librechat-secret-envs --from-env-file=.env.example --dry-run=client -o yaml > secret-envs.yaml
-   # For better maintainabillity, you can put all vars directly in the config Section and only overwrite Secrets with this if nessesary.
-   # Required Values:
-   # - CREDS_KEY
-   # - CREDS_IV
-   # - JWT_SECRET
-   # - JWT_REFRESH_SECRET
-   # - MEILI_MASTER_KEY
+   # Secret containing all sensitive environment variables.
+   # Generate with: kubectl create secret generic librechat-credentials-env --from-env-file=.env --dry-run=client -o yaml > secret-envs.yaml
+   #
+   # Required keys:
+   #   CREDS_KEY              - Encryption key (openssl rand -hex 32)
+   #   CREDS_IV               - Encryption IV (openssl rand -hex 16)
+   #   JWT_SECRET             - JWT signing secret (openssl rand -hex 32)
+   #   JWT_REFRESH_SECRET     - JWT refresh token secret (openssl rand -hex 32)
+   #   MEILI_MASTER_KEY       - Meilisearch master key
+   #   REDIS_PASSWORD         - Redis authentication password
+   #
+   # Optional keys (add as needed for your deployment):
+   #   OPENAI_API_KEY         - OpenAI API key (for TTS/STT via LiteLLM)
+   #   AZURE_OPENAI_API_KEY   - Azure OpenAI API key
+   #   AZURE_TTS_API_KEY      - Azure Text-to-Speech API key
+   #   OCR_API_KEY            - OCR service API key
+   #   OPENID_CLIENT_ID       - OpenID Connect client ID
+   #   OPENID_CLIENT_SECRET   - OpenID Connect client secret
+   #   OPENID_SESSION_SECRET  - OpenID session secret
   librechat:
     existingSecretName: "librechat-credentials-env"
     # Used for Setting the Right Key, can be something like AZURE_API_KEY, if Azure OpenAI is used
@@ -34,18 +45,10 @@ global:
 
 librechat:
   configEnv:
-    # IMPORTANT -- GENERATE your own: openssl rand -hex 32 and openssl rand -hex 16 for CREDS_IV. Best Practise: Put into Secret. See global.librechat.existingSecretName
-    CREDS_KEY: 9e95d9894da7e68dd69c0046caf5343c8b1e80c89609b5a1e40e6568b5b23ce6
-    CREDS_IV: ac028c86ba23f4cd48165e0ca9f2c683
-    JWT_SECRET: 16f8c0ef4a5d391b26034086c628469d3f9f497f08163ab9b40137092f2909ef
-    JWT_REFRESH_SECRET: eaa5191f2914e30b9387fd84e254e4ba6fc51b4654968a9b0803b456a54b8418
-    # Set Config Params here
-    # ENV_NAME: env-value
-
-    # existing Secret for all envs/ only Passwords. Can be locally generated with: kubectl create secret generic librechat-secret-envs --from-env-file=.env.example --dry-run=client -o yaml > secret-envs.yaml
-    # For better maintainabillity, you can put all vars directly in the config Section and only overwrite Secrets with this if nessesary.
-    # Required Values:
-    # - MEILI_MASTER_KEY
+    # Non-secret configuration values. Secrets (CREDS_KEY, JWT_SECRET, etc.)
+    # belong in the Secret referenced by global.librechat.existingSecretName.
+    # Set feature flags and non-sensitive config here:
+    SEARCH: "true"
   existingSecretName: "librechat-credentials-env"
   
   # For adding a custom config yaml-file you can set the contents in this var. See https://www.librechat.ai/docs/configuration/librechat_yaml/example
@@ -117,7 +120,7 @@ librechat-rag-api:
 
 
 image:
-  repository: danny-avila/librechat
+  repository: jrmatherly/librechat-dev
   registry: ghcr.io
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
@@ -305,14 +308,22 @@ meilisearch:
     enabled: true
     storageClass: ""
   image:
-    tag: "v1.7.3"
+    tag: "v1.35.1"
   auth:
     # Use an existing Kubernetes secret for the MEILI_MASTER_KEY
     existingMasterKeySecret: "librechat-credentials-env"
 
 # Redis Parameters
 redis:
-  enabled: false
+  enabled: true
   architecture: standalone
   auth:
-    enabled: false
+    enabled: true
+    existingSecret: "librechat-credentials-env"
+    existingSecretPasswordKey: "REDIS_PASSWORD"
+  # NOTE: commonConfiguration replaces Bitnami defaults entirely (not appended).
+  # For standalone architecture this is acceptable.
+  commonConfiguration: |-
+    maxmemory 512mb
+    maxmemory-policy allkeys-lru
+    save 60 1

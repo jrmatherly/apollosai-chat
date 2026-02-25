@@ -92,6 +92,8 @@ spec:
           - name: image-volume
             mountPath: "/app/client/public/images"
           {{- end }}
+          - name: uploads-temp
+            mountPath: "/app/uploads"
           {{- if .Values.volumeMounts }}
           {{- toYaml .Values.volumeMounts | nindent 10 }}
           {{- end }}
@@ -103,9 +105,24 @@ spec:
               name: {{ .Values.global.librechat.existingSecretName }}
               optional: true
           {{- end }}
-          {{- with .Values.global.librechat.env }}
+          {{- if or .Values.global.librechat.env (and .Values.redis.enabled .Values.redis.auth.enabled (not (dig "configEnv" "REDIS_URI" "" .Values.librechat))) }}
           env:
+          {{- with .Values.global.librechat.env }}
           {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if and .Values.redis.enabled .Values.redis.auth.enabled (not (dig "configEnv" "REDIS_URI" "" .Values.librechat)) }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: {{ .Values.redis.auth.existingSecretPasswordKey | default "REDIS_PASSWORD" }}
+            - name: REDIS_HOST
+              value: "{{ include "librechat.redis.fullname" . }}-master.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_URI
+              value: "redis://:$(REDIS_PASSWORD)@$(REDIS_HOST):$(REDIS_PORT)/0"
+          {{- end }}
           {{- end }}
       volumes:
       {{- if or .Values.librechat.configYamlContent .Values.librechat.existingConfigYaml }}
@@ -122,6 +139,8 @@ spec:
         persistentVolumeClaim:
           claimName: {{ include "librechat.fullname" $ }}-images
       {{- end }}
+      - name: uploads-temp
+        emptyDir: {}
       {{- if .Values.volumes }}
       {{- toYaml .Values.volumes | nindent 6 }}
       {{- end }}

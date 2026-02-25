@@ -16,7 +16,10 @@ data:
   USE_REDIS: "true"
   {{- end }}
   {{- if and (not (dig "configEnv" "REDIS_URI" "" .Values.librechat)) .Values.redis.enabled }}
-  REDIS_URI: redis://{{ include "common.names.fullname" .Subcharts.redis }}-master.{{ .Release.Namespace | lower }}.svc.cluster.local:6379
+  {{- if not .Values.redis.auth.enabled }}
+  REDIS_URI: redis://{{ include "librechat.redis.fullname" . }}-master.{{ .Release.Namespace | lower }}.svc.cluster.local:6379
+  {{- end }}
+  {{/*- When redis.auth.enabled, REDIS_URI is constructed in the Deployment env block via $(REDIS_PASSWORD) substitution */}}
   {{- end }}
   {{- if .Values.librechat.configEnv }}
   {{- toYaml .Values.librechat.configEnv | nindent 2 }}

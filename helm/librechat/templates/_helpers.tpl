@@ -65,6 +65,21 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
+Redis fullname — respects redis.fullnameOverride and redis.nameOverride.
+Replicates Bitnami common.names.fullname logic since that helper is a
+transitive dependency (via the redis subchart) and not available here.
+*/}}
+{{- define "librechat.redis.fullname" -}}
+{{- if .Values.redis.fullnameOverride -}}
+  {{- .Values.redis.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else if .Values.redis.nameOverride -}}
+  {{- printf "%s-%s" .Release.Name .Values.redis.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+  {{- printf "%s-redis" .Release.Name | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Define apiVersion of HorizontalPodAutoscaler
 */}}
 {{- define "librechat.hpa.apiVersion" -}}

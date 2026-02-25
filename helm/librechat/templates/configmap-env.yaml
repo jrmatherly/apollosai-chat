@@ -21,6 +21,12 @@ data:
   {{- end }}
   {{/*- When redis.auth.enabled, REDIS_URI is constructed in the Deployment env block via $(REDIS_PASSWORD) substitution */}}
   {{- end }}
+  {{- if and (not (dig "configEnv" "FIRECRAWL_API_URL" "" .Values.librechat)) .Values.firecrawl.enabled }}
+  FIRECRAWL_API_URL: http://{{ include "librechat.fullname" . }}-firecrawl.{{ .Release.Namespace | lower }}.svc.cluster.local:3002
+  {{- end }}
+  {{- if and (not (dig "configEnv" "FIRECRAWL_API_KEY" "" .Values.librechat)) .Values.firecrawl.enabled }}
+  FIRECRAWL_API_KEY: {{ .Values.firecrawl.apiKey | default "fc-self-hosted" | quote }}
+  {{- end }}
   {{- if and (not (dig "configEnv" "SEARXNG_INSTANCE_URL" "" .Values.librechat)) .Values.searxng.enabled }}
   SEARXNG_INSTANCE_URL: http://{{ include "librechat.fullname" . }}-searxng.{{ .Release.Namespace | lower }}.svc.cluster.local:8080
   {{- end }}

@@ -1,0 +1,19 @@
+{{- if .Values.firecrawl.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "librechat.fullname" . }}-rabbitmq
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: amqp
+      protocol: TCP
+      name: amqp
+  selector:
+    {{- include "librechat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+{{- end }}

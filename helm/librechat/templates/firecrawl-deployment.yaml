@@ -1,0 +1,87 @@
+{{- if .Values.firecrawl.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "librechat.fullname" . }}-firecrawl
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: firecrawl
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "librechat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: firecrawl
+  template:
+    metadata:
+      labels:
+        {{- include "librechat.labels" . | nindent 8 }}
+        app.kubernetes.io/component: firecrawl
+    spec:
+      containers:
+        - name: firecrawl
+          image: "{{ .Values.firecrawl.image.repository }}:{{ .Values.firecrawl.image.tag }}"
+          ports:
+            - name: http
+              containerPort: 3002
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3002"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: USE_DB_AUTHENTICATION
+              value: "false"
+            - name: NUM_WORKERS_PER_QUEUE
+              value: {{ .Values.firecrawl.numWorkersPerQueue | default 8 | quote }}
+            - name: REDIS_URL
+              value: "redis://{{ include "librechat.fullname" . }}-firecrawl-redis:6379/0"
+            - name: REDIS_RATE_LIMIT_URL
+              value: "redis://{{ include "librechat.fullname" . }}-firecrawl-redis:6379/1"
+            - name: POSTGRES_HOST
+              value: "{{ include "librechat.fullname" . }}-nuq-postgres"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: FIRECRAWL_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: FIRECRAWL_DB_PASSWORD
+            - name: POSTGRES_DB
+              value: {{ .Values.firecrawl.nuqPostgres.database | default "postgres" | quote }}
+            - name: NUQ_RABBITMQ_URL
+              value: "amqp://{{ include "librechat.fullname" . }}-rabbitmq:5672"
+            - name: PLAYWRIGHT_MICROSERVICE_URL
+              value: "http://{{ include "librechat.fullname" . }}-firecrawl-playwright:3000/scrape"
+            - name: BULL_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: FIRECRAWL_BULL_AUTH_KEY
+            - name: FIRECRAWL_API_KEY
+              value: {{ .Values.firecrawl.apiKey | default "fc-self-hosted" | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.firecrawl.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

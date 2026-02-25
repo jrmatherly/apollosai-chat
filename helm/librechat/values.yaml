@@ -17,6 +17,13 @@ global:
    #   JWT_REFRESH_SECRET     - JWT refresh token secret (openssl rand -hex 32)
    #   MEILI_MASTER_KEY       - Meilisearch master key
    #   REDIS_PASSWORD         - Redis authentication password
+   #   MINIO_ROOT_USER        - MinIO root username (when minio.enabled)
+   #   MINIO_ROOT_PASSWORD    - MinIO root password (when minio.enabled)
+   #
+   # Required when firecrawl.enabled:
+   #   FIRECRAWL_DB_USER      - NUQ PostgreSQL username
+   #   FIRECRAWL_DB_PASSWORD  - NUQ PostgreSQL password
+   #   FIRECRAWL_BULL_AUTH_KEY - Firecrawl Bull queue auth key
    #
    # Optional keys (add as needed for your deployment):
    #   OPENAI_API_KEY         - OpenAI API key (for TTS/STT via LiteLLM)
@@ -359,3 +366,64 @@ searxng:
       memory: 512Mi
     requests:
       memory: 256Mi
+
+# Firecrawl Stack Parameters (web scraping)
+# Requires adding to the Secret: FIRECRAWL_DB_USER, FIRECRAWL_DB_PASSWORD,
+# FIRECRAWL_BULL_AUTH_KEY, and optionally FIRECRAWL_API_KEY
+firecrawl:
+  enabled: true
+  image:
+    repository: ghcr.io/firecrawl/firecrawl
+    tag: latest
+  numWorkersPerQueue: 8
+  resources:
+    limits:
+      cpu: "4"
+      memory: 8Gi
+    requests:
+      cpu: "1"
+      memory: 2Gi
+  redis:
+    image:
+      repository: redis
+      tag: 7-alpine
+    resources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 128Mi
+  rabbitmq:
+    image:
+      repository: rabbitmq
+      tag: 4-alpine
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+  nuqPostgres:
+    image:
+      registry: ghcr.io
+      repository: jrmatherly/nuq-postgres
+      tag: "17"
+    database: postgres
+    persistence:
+      size: 10Gi
+      # storageClassName: ""
+    resources:
+      limits:
+        memory: 512Mi
+      requests:
+        memory: 256Mi
+  playwright:
+    image:
+      repository: ghcr.io/firecrawl/playwright-service
+      tag: latest
+    maxConcurrentPages: 10
+    resources:
+      limits:
+        cpu: "2"
+        memory: 4Gi
+      requests:
+        cpu: "500m"
+        memory: 1Gi

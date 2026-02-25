@@ -1,0 +1,19 @@
+{{- if .Values.firecrawl.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "librechat.fullname" . }}-nuq-postgres
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nuq-postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "librechat.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: nuq-postgres
+{{- end }}

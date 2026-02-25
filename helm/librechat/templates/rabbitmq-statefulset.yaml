@@ -1,0 +1,45 @@
+{{- if .Values.firecrawl.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "librechat.fullname" . }}-rabbitmq
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rabbitmq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "librechat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: rabbitmq
+  template:
+    metadata:
+      labels:
+        {{- include "librechat.labels" . | nindent 8 }}
+        app.kubernetes.io/component: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: "{{ .Values.firecrawl.rabbitmq.image.repository }}:{{ .Values.firecrawl.rabbitmq.image.tag }}"
+          ports:
+            - name: amqp
+              containerPort: 5672
+              protocol: TCP
+          readinessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["rabbitmq-diagnostics", "-q", "ping"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.firecrawl.rabbitmq.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

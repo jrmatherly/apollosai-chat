@@ -1,0 +1,81 @@
+{{- if .Values.firecrawl.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "librechat.fullname" . }}-nuq-postgres
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+    app.kubernetes.io/component: nuq-postgres
+spec:
+  serviceName: {{ include "librechat.fullname" . }}-nuq-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "librechat.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: nuq-postgres
+  template:
+    metadata:
+      labels:
+        {{- include "librechat.labels" . | nindent 8 }}
+        app.kubernetes.io/component: nuq-postgres
+    spec:
+      containers:
+        - name: nuq-postgres
+          image: "{{ .Values.firecrawl.nuqPostgres.image.registry }}/{{ .Values.firecrawl.nuqPostgres.image.repository }}:{{ .Values.firecrawl.nuqPostgres.image.tag }}"
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: FIRECRAWL_DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.librechat.existingSecretName }}
+                  key: FIRECRAWL_DB_PASSWORD
+            - name: POSTGRES_DB
+              value: {{ .Values.firecrawl.nuqPostgres.database | default "postgres" | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER"
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with .Values.firecrawl.nuqPostgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.firecrawl.nuqPostgres.persistence.storageClassName }}
+        storageClassName: {{ .Values.firecrawl.nuqPostgres.persistence.storageClassName | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.firecrawl.nuqPostgres.persistence.size }}
+{{- end }}

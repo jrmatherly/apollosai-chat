@@ -1,0 +1,39 @@
+name: Helm Chart Lint
+
+on:
+  pull_request:
+    paths:
+      - "helm/**"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Build subchart dependencies
+        run: helm dependency build helm/librechat
+
+      - name: Lint chart (default values)
+        run: helm lint helm/librechat --set searxng.secretKey=ci-test-key
+
+      - name: Lint chart (all optional services disabled)
+        run: |
+          helm lint helm/librechat \
+            --set searxng.enabled=false \
+            --set minio.enabled=false \
+            --set firecrawl.enabled=false \
+            --set sandpack.enabled=false \
+            --set codeInterpreter.enabled=false
+
+      - name: Validate template rendering
+        run: |
+          helm template ci-test helm/librechat \
+            --set searxng.secretKey=ci-test-key \
+            > /dev/null

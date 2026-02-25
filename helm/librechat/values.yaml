@@ -287,6 +287,13 @@ dnsConfig: {}
 #     - name: timeout
 #       value: "1"
 
+# NetworkPolicies for service isolation
+# Restricts inbound traffic to data stores (MongoDB, Redis, MinIO, Meilisearch)
+# and Firecrawl internal services to only their expected consumers.
+# Requires a CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.).
+networkPolicies:
+  enabled: false
+
 # Strategy for LibreChat deployment updates
 updateStrategy:
   type: RollingUpdate

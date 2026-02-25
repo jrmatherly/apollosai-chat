@@ -1,0 +1,68 @@
+# Production values for LibreChat Helm chart.
+# Use with: helm install librechat ./helm/librechat -f helm/librechat/values-production.yaml
+#
+# Prerequisites:
+#   1. Create the credentials secret:
+#      kubectl create secret generic librechat-credentials-env --from-env-file=.env
+#
+#   2. Required keys in .env:
+#      CREDS_KEY, CREDS_IV, JWT_SECRET, JWT_REFRESH_SECRET,
+#      MEILI_MASTER_KEY, REDIS_PASSWORD,
+#      MINIO_ROOT_USER, MINIO_ROOT_PASSWORD,
+#      FIRECRAWL_DB_USER, FIRECRAWL_DB_PASSWORD, FIRECRAWL_BULL_AUTH_KEY,
+#      LIBRECHAT_CODE_API_KEY
+#
+#   3. Optional keys (add as needed):
+#      OPENAI_API_KEY, AZURE_OPENAI_API_KEY, OCR_API_KEY,
+#      OPENID_CLIENT_ID, OPENID_CLIENT_SECRET, OPENID_SESSION_SECRET
+
+replicaCount: 1
+
+image:
+  repository: jrmatherly/librechat-dev
+  registry: ghcr.io
+  pullPolicy: IfNotPresent
+  tag: ""
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+  hosts:
+    - host: chat.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: librechat-tls
+      hosts:
+        - chat.example.com
+
+resources:
+  limits:
+    cpu: "2"
+    memory: 2Gi
+  requests:
+    cpu: "500m"
+    memory: 512Mi
+
+# SearXNG requires a secret key — generate with: openssl rand -hex 32
+searxng:
+  enabled: true
+  secretKey: ""  # REQUIRED: set via --set or environment-specific override
+
+# NetworkPolicies restrict inbound traffic to data stores.
+# Requires a CNI plugin that supports NetworkPolicies (Calico, Cilium, etc.).
+networkPolicies:
+  enabled: true
+
+# All other services use defaults from values.yaml:
+# - mongodb.enabled: true (auth disabled — use NetworkPolicies)
+# - redis.enabled: true (auth enabled)
+# - meilisearch.enabled: true
+# - minio.enabled: true (50Gi persistence)
+# - firecrawl.enabled: true
+# - sandpack.enabled: true
+# - codeInterpreter.enabled: true (requires K8s 1.29+)

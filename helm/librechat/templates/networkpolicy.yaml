@@ -1,0 +1,220 @@
+{{- if .Values.networkPolicies.enabled }}
+{{- $fullname := include "librechat.fullname" . -}}
+{{- $selectorLabels := include "librechat.selectorLabels" . -}}
+---
+# MongoDB: only LibreChat can connect
+{{- if .Values.mongodb.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-mongodb
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mongodb
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 27017
+{{- end }}
+---
+# Redis: LibreChat (DB 0), SearXNG (DB 1), Code Interpreter (DB 4)
+{{- if .Values.redis.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-redis
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+        {{- if .Values.searxng.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: searxng
+        {{- end }}
+        {{- if .Values.codeInterpreter.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: code-interpreter
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 6379
+{{- end }}
+---
+# Meilisearch: only LibreChat can connect
+{{- if .Values.meilisearch.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-meilisearch
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: meilisearch
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: 7700
+{{- end }}
+---
+# MinIO: LibreChat, Code Interpreter, MinIO Init Job
+{{- if .Values.minio.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-minio
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app.kubernetes.io/component: minio
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+        {{- if .Values.codeInterpreter.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: code-interpreter
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 9000
+{{- end }}
+---
+# Firecrawl Redis: only Firecrawl can connect
+{{- if .Values.firecrawl.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-firecrawl-redis
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app.kubernetes.io/component: firecrawl-redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: firecrawl
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# RabbitMQ: only Firecrawl can connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-rabbitmq
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app.kubernetes.io/component: rabbitmq
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: firecrawl
+      ports:
+        - protocol: TCP
+          port: 5672
+---
+# NUQ PostgreSQL: only Firecrawl can connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-nuq-postgres
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app.kubernetes.io/component: nuq-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: firecrawl
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# Firecrawl Playwright: only Firecrawl can connect
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-firecrawl-playwright
+  labels:
+    {{- include "librechat.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- $selectorLabels | nindent 6 }}
+      app.kubernetes.io/component: firecrawl-playwright
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- $selectorLabels | nindent 14 }}
+              app.kubernetes.io/component: firecrawl
+      ports:
+        - protocol: TCP
+          port: 3000
+{{- end }}
+{{- end }}

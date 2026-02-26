@@ -33,8 +33,9 @@ server {
 #  Routes: LibreChat API + MinIO presigned URL buckets
 # =============================================================
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
     server_name ${LIBRECHAT_DOMAIN};
+    http2 on;
 
     # --- SSL certificates ---
     ssl_certificate     /etc/nginx/ssl/cert.pem;
@@ -118,8 +119,9 @@ server {
 #  Set SANDPACK_BUNDLER_URL=https://yourdomain.com:8443
 # =============================================================
 server {
-    listen 8443 ssl http2;
+    listen 8443 ssl;
     server_name ${LIBRECHAT_DOMAIN};
+    http2 on;
 
     ssl_certificate     /etc/nginx/ssl/cert.pem;
     ssl_certificate_key /etc/nginx/ssl/key.pem;

@@ -1,0 +1,86 @@
+# MindsDB — Nginx Reverse Proxy Configuration
+# Auto-generated from template by nginx:1-alpine envsubst entrypoint
+#
+# This file is included inside the http{} context via conf.d/
+# All directives here are scoped to MindsDB and do not
+# affect LibreChat's or MCP Context Forge's server blocks.
+#
+# The MCP Python SDK's TransportSecurityMiddleware validates the Host header
+# and rejects anything that isn't localhost or 127.0.0.1 (HTTP 421).
+# This proxy rewrites the Host header to localhost before forwarding to MindsDB,
+# making the MCP SSE endpoint accessible via external HTTPS.
+#
+# See: GitHub Issue #12089 (MindsDB), MCP SDK PR #861
+
+# =============================================================
+#  MindsDB — HTTPS Server (port 443)
+# =============================================================
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${MINDSDB_DOMAIN};
+
+    # Docker embedded DNS — resolves container names at request time
+    # Allows nginx to start even when MindsDB isn't running yet
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    set $mindsdb_backend http://mindsdb:47334;
+
+    # --- SSL certificates (shared with LibreChat) ---
+    ssl_certificate     /etc/nginx/ssl/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/key.pem;
+
+    # --- SSL hardening ---
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:MINDSDB_SSL:10m;
+    ssl_session_timeout 10m;
+
+    # --- Security headers ---
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # ============================================================
+    # MCP SSE Endpoint — Host rewrite + SSE-optimized settings
+    # ============================================================
+    location /mcp/ {
+        proxy_pass $mindsdb_backend/mcp/;
+
+        # Host rewrite: bypass MCP SDK DNS rebinding protection
+        proxy_set_header Host localhost;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_http_version 1.1;
+
+        # SSE-specific: disable buffering and keep connection alive
+        proxy_set_header Connection '';
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+
+        # SSE connections can be long-lived
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+
+    # ============================================================
+    # MindsDB HTTP API + Web GUI — Standard proxy
+    # ============================================================
+    location / {
+        proxy_pass $mindsdb_backend;
+
+        proxy_set_header Host localhost;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_http_version 1.1;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 120s;
+        proxy_read_timeout 120s;
+    }
+}

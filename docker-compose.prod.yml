@@ -35,9 +35,11 @@ services:
     networks:
       - default # LibreChat internal services (api, minio, sandpack-bundler)
       - shared-proxy # Cross-stack access to MCP Context Forge gateway
+      - mcpnet # Cross-stack access to MindsDB (MCP SSE + HTTP API)
     environment:
       - LIBRECHAT_DOMAIN=${LIBRECHAT_DOMAIN:-_}
       - MCF_DOMAIN=${MCF_DOMAIN:-_}
+      - MINDSDB_DOMAIN=${MINDSDB_DOMAIN:-_}
     volumes:
       # Main nginx config with performance tuning + conf.d include
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -47,6 +49,8 @@ services:
       - ./nginx/librechat.conf.template:/etc/nginx/templates/librechat.conf.template:ro
       # MCP Context Forge routing (generated from template by entrypoint)
       - ./nginx/mcf-gateway.conf.template:/etc/nginx/templates/mcf-gateway.conf.template:ro
+      # MindsDB routing with MCP SDK Host rewrite (generated from template by entrypoint)
+      - ./nginx/mindsdb.conf.template:/etc/nginx/templates/mindsdb.conf.template:ro
       # SSL certificates
       - ${SSL_CERT_PATH}:/etc/nginx/ssl/cert.pem:ro
       - ${SSL_KEY_PATH}:/etc/nginx/ssl/key.pem:ro
@@ -568,6 +572,8 @@ services:
 
 networks:
   shared-proxy: # Shared network for cross-stack nginx routing (LibreChat ↔ MCF)
+    external: true
+  mcpnet: # MCF internal network — nginx joins to reach MindsDB directly
     external: true
 
 volumes:

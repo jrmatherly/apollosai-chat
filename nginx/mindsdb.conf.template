@@ -5,12 +5,13 @@
 # All directives here are scoped to MindsDB and do not
 # affect LibreChat's or MCP Context Forge's server blocks.
 #
-# The MCP Python SDK's TransportSecurityMiddleware validates the Host header
-# and rejects anything that isn't localhost or 127.0.0.1 (HTTP 421).
-# This proxy rewrites the Host header to localhost before forwarding to MindsDB,
-# making the MCP SSE endpoint accessible via external HTTPS.
+# The MCP Python SDK's TransportSecurityMiddleware (enabled by default since
+# MCP SDK v1.23.0 / CVE-2025-66416) validates the Host header against an
+# allowed_hosts list.  MindsDB's defaults are ["localhost:*", "127.0.0.1:*"]
+# — the wildcard pattern requires "host:PORT" format (bare "localhost" fails).
+# This proxy rewrites the Host header to localhost:47334 to match.
 #
-# See: GitHub Issue #12089 (MindsDB), MCP SDK PR #861
+# See: GitHub Issue #12089 (MindsDB), MCP SDK PR #861, MindsDB PR #12110
 
 # =============================================================
 #  MindsDB — HTTPS Server (port 443)
@@ -49,7 +50,7 @@ server {
         proxy_pass $mindsdb_backend/mcp/;
 
         # Host rewrite: bypass MCP SDK DNS rebinding protection
-        proxy_set_header Host localhost;
+        proxy_set_header Host localhost:47334;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
@@ -72,7 +73,7 @@ server {
     location / {
         proxy_pass $mindsdb_backend;
 
-        proxy_set_header Host localhost;
+        proxy_set_header Host localhost:47334;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
